@@ -1,4 +1,4 @@
-# KumpulTepat (hebat-submitter) ⚡
+# Hebat_Submitter ⚡
 
 Sistem auto-submit pengumpulan tugas Moodle UNAIR (`hebat.elearning.unair.ac.id`) berbasis **serverless zero-browser** di Cloudflare Workers. Dirancang khusus untuk memenangkan jendela pengumpulan tugas mingguan (Rabu 07:00:00 WIB) dengan presisi sub-detik, efisiensi maksimal, dan keamanan terisolasi.
 
@@ -78,7 +78,7 @@ Buka URL tersebut di browser ponsel atau laptop, masukkan `APP_PASSWORD` Anda, d
 ## 📱 Panduan Penggunaan Mingguan
 
 1. **Selasa Malam (H-1):**
-   - Buka URL dashboard KumpulTepat Anda.
+   - Buka URL dashboard Hebat_Submitter Anda.
    - Buka tab **Berkas** -> Unggah laporan praktikum dalam format `.pdf`.
    - Buka tab **Pengaturan** -> Pastikan nama modul sesuai dengan target minggu ini (misal: `Pengumpulan Modul Prak Lab 10`).
    - Buka tab **Beranda** -> Tekan tombol **Cek Tugas (Check)** untuk memastikan modul terdeteksi.
@@ -110,7 +110,7 @@ Buka URL tersebut di browser ponsel atau laptop, masukkan `APP_PASSWORD` Anda, d
 │   ├── time.ts             # Parser waktu & sinkronisasi offset server Moodle
 │   └── log.ts              # Logger terstruktur dengan redaksi rahasia otomatis
 ├── ui/                     # Apple-Native Minimalist Web Dashboard
-│   ├── index.html          # Markup HTML antarmuka KumpulTepat
+│   ├── index.html          # Markup HTML antarmuka Hebat_Submitter
 │   ├── style.css           # Token desain Apple, responsif ponsel/desktop
 │   └── app.js              # Kontroler WebGL Fluid Flow (60FPS) & API dashboard
 ├── tests/                  # Unit test Vitest dengan fixture tersanitasi

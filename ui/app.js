@@ -1,6 +1,6 @@
 /**
  * ui/app.js
- * Controller for KumpulTepat Apple-Native UI with 60FPS WebGL Fluid Flow Canvas.
+ * Controller for Hebat_Submitter Apple-Native UI with 60FPS WebGL Fluid Flow Canvas.
  */
 
 // ----------------------------------------------------------------------------

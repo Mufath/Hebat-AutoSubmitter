@@ -1,4 +1,4 @@
-# Runbook Operasional: KumpulTepat (Moodle Auto-Submit)
+# Runbook Operasional: Hebat_Submitter (Moodle Auto-Submit)
 
 Panduan operasional resmi untuk mahasiswa dalam mengoperasikan sistem otomasi pengumpulan tugas Moodle UNAIR (`hebat.elearning.unair.ac.id`) secara andal, aman, dan tepat waktu pada jendela submission Rabu pukul 07:00:00 WIB.
 
@@ -46,7 +46,7 @@ Lakukan langkah persiapan berikut sebelum pukul 23:00 WIB pada hari Selasa:
 ### Langkah 2.5: Uji Notifikasi Telegram
 1. Buka tab **Pengaturan**.
 2. Klik tombol **Uji Kirim Telegram**.
-3. Pastikan bot mengirimkan pesan *"Tes notifikasi KumpulTepat berhasil!"* ke ponsel Anda.
+3. Pastikan bot mengirimkan pesan *"Tes notifikasi Hebat_Submitter berhasil!"* ke ponsel Anda.
 
 ---
 
@@ -80,7 +80,7 @@ Kondisi darurat terjadi jika:
 6. Konfirmasi bahwa halaman menampilkan *"Submitted for grading"*.
 
 ### 4.3 Investigasi & Diagnosis
-1. Buka tab **Log** pada dashboard KumpulTepat.
+1. Buka tab **Log** pada dashboard Hebat_Submitter.
 2. Teliti entri log dengan level `[ERROR]` atau `[WARN]`:
    - `LOGIN_FAILED`: Kredensial Moodle salah atau password akun UNAIR kedaluwarsa.
    - `ASSIGNMENT_NOT_FOUND`: Nama tugas di pengaturan tidak cocok dengan judul di Moodle. Periksa apakah dosen menggunakan format penamaan berbeda.
@@ -102,7 +102,7 @@ npx wrangler secret put MOODLE_PASS
 # Ganti username/NIM Moodle
 npx wrangler secret put MOODLE_USER
 
-# Ganti password login dashboard KumpulTepat
+# Ganti password login dashboard Hebat_Submitter
 npx wrangler secret put APP_PASSWORD
 
 # Ganti bot token Telegram

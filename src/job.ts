@@ -482,7 +482,7 @@ export class SubmitJob extends DurableObject<Env> {
     await sendTelegramNotification(
       this.env.TELEGRAM_BOT_TOKEN,
       this.env.TELEGRAM_CHAT_ID,
-      `✅ <b>AutoSubmit ${dryRun ? '[DRY RUN] ' : ''}Sukses!</b>\nTugas: ${assignment.name}\nDurasi submit: ${tSubmitElapsed} ms\nStatus: ${submitRes.status.statusText}`
+      `✅ <b>Hebat_Submitter ${dryRun ? '[DRY RUN] ' : ''}Sukses!</b>\nTugas: ${assignment.name}\nDurasi submit: ${tSubmitElapsed} ms\nStatus: ${submitRes.status.statusText}`
     );
 
     // Auto-weekly rescheduling

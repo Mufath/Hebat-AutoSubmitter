@@ -215,7 +215,7 @@ export default {
         const res = await sendTelegramNotification(
           env.TELEGRAM_BOT_TOKEN,
           env.TELEGRAM_CHAT_ID,
-          '🔔 <b>AutoSubmit Test</b>: Koneksi bot Telegram berhasil terhubung!'
+          '🔔 <b>Hebat_Submitter Test</b>: Koneksi bot Telegram berhasil terhubung!'
         );
         return jsonResponse(res);
       }

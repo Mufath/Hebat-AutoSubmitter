@@ -26,6 +26,8 @@ Catatan pengujian hipotesis (H1–H8) dan fakta terverifikasi sistem auto-submit
 | F13 | Perilaku kunci (F7) terbukti valid: akses `mod/assign/view.php?id=101761` me-redirect 303 ke `course/view.php?id=10978`. | Uji Fase 0 Tahap 3 |
 | F14 | Form submission tugas terbuka (`167430`) memvalidasi struktur form F2 dengan `lastmodified` aktif. | Uji Fase 0 Tahap 6 |
 | F15 | **LIVE SUBMISSION TERBUKTI SUKSES**: Submission nyata via HTTP murni pada cmid `167430` berhasil terverifikasi "Submitted for grading" dengan file `tugas_test_autosubmit.pdf` terlampir di Moodle. Durasi POST: 668 ms. | Uji Live Mandiri (14 Okt 2026) |
+| F16 | **DEPLOYMENT PRODUCTION CLOUDFLARE SUKSES**: Worker berhasil online di `https://hebat-submitter.mufath04.workers.dev` lengkap dengan Durable Object SQLite singleton dan static assets UI. | Deploy Produksi (14 Okt 2026) |
+| F17 | **IP CLOUDFLARE DITERIMA MOODLE UNAIR**: Request `/api/check` dari edge Cloudflare berhasil login dan mendeteksi modul di server `hebat.elearning.unair.ac.id` tanpa diblokir/CAPTCHA. Server offset terukur: `-43.5 ms`. | Uji Edge Cloudflare (14 Okt 2026) |
 
 ## Log Latensi Terukur (Koneksi Lokal ke Server UNAIR)
 

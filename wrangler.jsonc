@@ -1,0 +1,29 @@
+{
+  "name": "hebat-submitter",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-10-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "JOB",
+        "class_name": "SubmitJob"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["SubmitJob"]
+    }
+  ],
+  "triggers": {
+    "crons": ["30 23 * * 2"]
+  },
+  "vars": {
+    "MOODLE_BASE": "https://hebat.elearning.unair.ac.id",
+    "COURSE_ID": "10978",
+    "ASSIGNMENT_NAME": "Pengumpulan Modul Prak Lab",
+    "DRY_RUN": "true"
+  }
+}

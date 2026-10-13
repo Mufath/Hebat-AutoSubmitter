@@ -34,6 +34,7 @@ export interface JobConfig {
   sectionUrl?: string;
   unlockAtOverride?: string; // ISO string
   autoWeekly: boolean;
+  dryRun?: boolean;
 }
 
 export interface StoredFileMeta {
@@ -94,11 +95,19 @@ export class SubmitJob extends DurableObject<Env> {
 
   private async getConfig(): Promise<JobConfig> {
     const stored = await this.ctx.storage.get<JobConfig>('config');
-    return stored || {
-      assignmentName: this.env.ASSIGNMENT_NAME || 'Pengumpulan Modul Prak Lab',
-      courseId: this.env.COURSE_ID || '10978',
-      autoWeekly: false,
-    };
+    const defaultDryRun = this.env.DRY_RUN !== 'false';
+    if (!stored) {
+      return {
+        assignmentName: this.env.ASSIGNMENT_NAME || 'Pengumpulan Modul Prak Lab',
+        courseId: this.env.COURSE_ID || '10978',
+        autoWeekly: false,
+        dryRun: defaultDryRun,
+      };
+    }
+    if (stored.dryRun === undefined) {
+      stored.dryRun = defaultDryRun;
+    }
+    return stored;
   }
 
   private async getPhase(): Promise<JobPhase> {
@@ -153,7 +162,7 @@ export class SubmitJob extends DurableObject<Env> {
       serverOffsetMs,
       lastResult: lastResult || null,
       alarmScheduledAt: alarmTime || null,
-      dryRun: this.env.DRY_RUN !== 'false',
+      dryRun: config.dryRun !== undefined ? config.dryRun : (this.env.DRY_RUN !== 'false'),
       activeSchedule,
     };
   }
@@ -379,7 +388,7 @@ export class SubmitJob extends DurableObject<Env> {
       throw new Error('Ambil form submission gagal (form belum tersedia)');
     }
 
-    const dryRun = this.env.DRY_RUN !== 'false';
+    const dryRun = config.dryRun !== undefined ? config.dryRun : (this.env.DRY_RUN !== 'false');
     const tSubmitStart = Date.now();
     let submitRes = { ok: true, status: { isSubmitted: true, statusText: 'Submitted for grading (Dry Run)' } };
 
@@ -534,7 +543,7 @@ export class SubmitJob extends DurableObject<Env> {
     const draft = await this.ctx.storage.get<{ itemId: number; createdAt: number }>('draft');
     const offset = (await this.ctx.storage.get<number>('serverOffsetMs')) || 0;
     const nextUnlockAt = (await this.ctx.storage.get<number>('nextUnlockAt')) || getNextWednesdayUnlockUtc();
-    const dryRun = this.env.DRY_RUN !== 'false';
+    const dryRun = config.dryRun !== undefined ? config.dryRun : (this.env.DRY_RUN !== 'false');
 
     if (!assignment || !draft) {
       await this.appendLog('ERROR', 'Alarm B aborted: missing assignment or draft data');

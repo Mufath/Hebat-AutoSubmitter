@@ -195,6 +195,7 @@ const cfgCourseId = document.getElementById('cfg-course-id');
 const cfgAssignName = document.getElementById('cfg-assign-name');
 const cfgUnlockOverride = document.getElementById('cfg-unlock-override');
 const cfgAutoWeekly = document.getElementById('cfg-auto-weekly');
+const cfgDryRun = document.getElementById('cfg-dry-run');
 const btnTestTelegram = document.getElementById('btn-test-telegram');
 
 // Logs Tab
@@ -410,6 +411,7 @@ async function refreshStatus() {
       cfgAssignName.value = status.config.assignmentName || '';
       cfgUnlockOverride.value = status.config.unlockAtOverride || '';
       cfgAutoWeekly.checked = Boolean(status.config.autoWeekly);
+      cfgDryRun.checked = Boolean(status.dryRun);
     }
 
     // Countdown
@@ -570,6 +572,7 @@ configForm.addEventListener('submit', async (e) => {
     assignmentName: cfgAssignName.value.trim(),
     unlockAtOverride: cfgUnlockOverride.value.trim() || undefined,
     autoWeekly: cfgAutoWeekly.checked,
+    dryRun: cfgDryRun.checked,
   };
 
   try {

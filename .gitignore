@@ -1,0 +1,9 @@
+node_modules/
+.dev.vars
+.env
+*.pdf
+*.har
+*.log
+screenshots/
+dist/
+.wrangler/

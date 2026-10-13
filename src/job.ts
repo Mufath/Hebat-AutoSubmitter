@@ -62,14 +62,13 @@ export interface Env {
   TELEGRAM_CHAT_ID?: string;
 }
 
-export class SubmitJob {
-  private ctx: DurableObjectState;
-  private env: Env;
+import { DurableObject } from 'cloudflare:workers';
+
+export class SubmitJob extends DurableObject<Env> {
   private logger: Logger;
 
   constructor(ctx: DurableObjectState, env: Env) {
-    this.ctx = ctx;
-    this.env = env;
+    super(ctx, env);
     this.logger = new Logger([this.env.MOODLE_PASS, this.env.MOODLE_USER, this.env.APP_PASSWORD]);
   }
 

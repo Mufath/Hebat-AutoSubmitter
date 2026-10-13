@@ -60,6 +60,7 @@ export interface Env {
   SESSION_HMAC_KEY?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
+  ASSETS?: Fetcher;
 }
 
 import { DurableObject } from 'cloudflare:workers';

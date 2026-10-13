@@ -223,9 +223,13 @@ export default {
       return jsonResponse({ ok: false, error: 'NOT_FOUND' }, 404);
     }
 
-    // Default response for web root (UI static placeholder until UI files served)
+    // Serve UI static assets (index.html, style.css, app.js)
+    if (env.ASSETS) {
+      return env.ASSETS.fetch(req);
+    }
+
     return new Response(
-      `<!DOCTYPE html><html><head><title>Hebat Submitter</title></head><body><h1>Hebat Submitter Active</h1><p>API online.</p></body></html>`,
+      `<!DOCTYPE html><html><head><title>Hebat Submitter</title></head><body><h1>Hebat Submitter Active</h1><p>UI assets not found.</p></body></html>`,
       { headers: { 'content-type': 'text/html; charset=utf-8' } }
     );
   },

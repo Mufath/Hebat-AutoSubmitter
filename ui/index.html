@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hebat Submitter — Moodle UNAIR</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Modal Login -->
+  <div id="login-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="brand-header">
+        <span class="brand-badge">UNAIR</span>
+        <h2>Hebat Submitter</h2>
+      </div>
+      <p class="subtitle">Sistem Otomasi Pengumpulan Tugas Moodle</p>
+      
+      <form id="login-form">
+        <div class="form-group">
+          <label for="app-password">Password Dashboard</label>
+          <input type="password" id="app-password" placeholder="Masukkan APP_PASSWORD..." required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Masuk ke Dashboard</button>
+        <p id="login-error" class="error-text hidden"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main App Layout -->
+  <div id="app-container" class="app-layout hidden">
+    <!-- Navbar -->
+    <header class="navbar">
+      <div class="nav-brand">
+        <div class="logo-box">⚡</div>
+        <div>
+          <h1>Hebat Submitter</h1>
+          <span class="nav-status-badge" id="badge-phase">IDLE</span>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <span id="dry-run-indicator" class="tag-dry-run">DRY RUN</span>
+        <button id="btn-logout" class="btn btn-outline btn-sm">Keluar</button>
+      </div>
+    </header>
+
+    <main class="content-grid">
+      <!-- Left Column: Status, Countdown, Actions -->
+      <section class="card status-card">
+        <div class="card-header">
+          <h3>Status Sistem</h3>
+          <span id="server-offset-text" class="text-muted text-sm">Offset: 0 ms</span>
+        </div>
+
+        <div class="countdown-banner">
+          <div class="countdown-label">WAKTU HINGGA UNLOCK BERIKUTNYA</div>
+          <div id="countdown-timer" class="countdown-time">-- : -- : --</div>
+          <div id="unlock-target-text" class="countdown-sub">Target: Menunggu kalkulasi...</div>
+        </div>
+
+        <div class="info-list">
+          <div class="info-item">
+            <span class="info-label">Fase Saat Ini</span>
+            <span id="info-phase" class="info-value font-mono">IDLE</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Assignment Terdeteksi</span>
+            <span id="info-assignment" class="info-value">Belum dipindai</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Status Tugas</span>
+            <span id="info-locked" class="info-value">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Draft Item ID</span>
+            <span id="info-draft" class="info-value font-mono">Tidak ada</span>
+          </div>
+        </div>
+
+        <div class="action-grid">
+          <button id="btn-check" class="btn btn-secondary">🔍 Pindai (Check)</button>
+          <button id="btn-prepare" class="btn btn-secondary">📦 Persiapkan (Prepare)</button>
+          <button id="btn-arm" class="btn btn-success">🛡️ Aktifkan (ARM)</button>
+          <button id="btn-disarm" class="btn btn-danger">⏹️ Batalkan (DISARM)</button>
+        </div>
+      </section>
+
+      <!-- Right Column: File Upload & Settings -->
+      <section class="card">
+        <div class="card-header">
+          <h3>File Tugas (PDF)</h3>
+        </div>
+        
+        <div id="dropzone" class="dropzone">
+          <input type="file" id="file-input" accept="application/pdf" class="file-input-hidden">
+          <div class="dropzone-content">
+            <div class="dropzone-icon">📄</div>
+            <p class="dropzone-text"><strong>Klik untuk memilih file</strong> atau seret file PDF ke sini</p>
+            <p class="dropzone-sub">Maksimal 10 MB (Format PDF murni)</p>
+          </div>
+        </div>
+
+        <div id="file-details" class="file-details hidden">
+          <div class="file-meta">
+            <span id="file-name" class="font-bold">modul.pdf</span>
+            <span id="file-size" class="text-muted text-sm">0 KB</span>
+          </div>
+          <button id="btn-delete-file" class="btn btn-sm btn-danger">Hapus File</button>
+        </div>
+
+        <hr class="divider">
+
+        <div class="card-header">
+          <h3>Pengaturan Assignment</h3>
+        </div>
+        <form id="config-form">
+          <div class="form-group">
+            <label for="cfg-course-id">Course ID</label>
+            <input type="text" id="cfg-course-id" required>
+          </div>
+          <div class="form-group">
+            <label for="cfg-assign-name">Pola Nama Tugas</label>
+            <input type="text" id="cfg-assign-name" required placeholder="Contoh: Pengumpulan Modul Prak Lab">
+          </div>
+          <div class="form-group">
+            <label for="cfg-unlock-override">Override Waktu Unlock (Opsional)</label>
+            <input type="text" id="cfg-unlock-override" placeholder="Format ISO: 2026-10-21T00:00:00.000Z">
+          </div>
+          <div class="form-checkbox">
+            <input type="checkbox" id="cfg-auto-weekly">
+            <label for="cfg-auto-weekly">Aktifkan otomatis setiap minggu (Auto-Weekly)</label>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Simpan Pengaturan</button>
+        </form>
+      </section>
+
+      <!-- Logs Section (Full Width) -->
+      <section class="card full-width">
+        <div class="card-header">
+          <h3>Log Sistem Terstruktur (Tersanitasi)</h3>
+          <button id="btn-refresh-logs" class="btn btn-sm btn-outline">🔄 Refresh</button>
+        </div>
+        <div class="table-container">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th style="width: 180px;">Waktu</th>
+                <th style="width: 90px;">Level</th>
+                <th>Peristiwa (Event)</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody id="logs-tbody">
+              <tr><td colspan="4" class="text-center text-muted">Memuat log...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

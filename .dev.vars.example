@@ -1,0 +1,7 @@
+# Salin file ini menjadi .dev.vars (jangan commit file .dev.vars ke Git)
+MOODLE_USER=isi_username_moodle_disini
+MOODLE_PASS=isi_password_moodle_disini
+MOODLE_BASE=https://hebat.elearning.unair.ac.id
+COURSE_ID=10978
+ASSIGNMENT_NAME=Pengumpulan Modul Prak Lab
+DRY_RUN=true

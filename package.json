@@ -1,0 +1,18 @@
+{
+  "name": "hebat-submitter",
+  "version": "1.0.0",
+  "description": "High-speed Moodle auto-submit system for Cloudflare Workers",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241011.0",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0",
+    "wrangler": "^3.80.0"
+  }
+}

@@ -14,7 +14,9 @@ export async function sendTelegramNotification(
   }
 
   try {
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const trimmed = botToken.trim();
+    const tokenPart = trimmed.startsWith('bot') ? trimmed : `bot${trimmed}`;
+    const url = `https://api.telegram.org/${tokenPart}/sendMessage`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

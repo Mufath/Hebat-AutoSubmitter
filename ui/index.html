@@ -1,162 +1,308 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hebat Submitter — Moodle UNAIR</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+  <title>KumpulTepat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <!-- Modal Login -->
-  <div id="login-modal" class="modal-overlay">
+  <!-- WebGL Fluid Flow Canvas (Hardware Accelerated, Smooth 60FPS) -->
+  <canvas aria-hidden="true" id="flow-canvas"></canvas>
+  <!-- Ambient Light Overlay -->
+  <div aria-hidden="true" class="canvas-overlay"></div>
+
+  <!-- Inline SVG Sprite -->
+  <svg aria-hidden="true" style="display:none;" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-check" viewbox="0 0 20 20">
+      <path d="M4.5 10.5l3.8 3.8 7.2-8.2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4"></path>
+    </symbol>
+    <symbol id="icon-chevron-right" viewbox="0 0 20 20">
+      <path d="M7.5 4.5l5 5.5-5 5.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+    </symbol>
+    <symbol id="icon-cross" viewbox="0 0 20 20">
+      <path d="M5 5l10 10M15 5l-10 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"></path>
+    </symbol>
+  </svg>
+
+  <!-- Login Modal -->
+  <div id="login-modal" class="modal-overlay hidden">
     <div class="modal-box">
-      <div class="brand-header">
-        <span class="brand-badge">UNAIR</span>
-        <h2>Hebat Submitter</h2>
+      <div class="header-brand" style="margin-bottom: 8px;">
+        <span class="system-name">KumpulTepat</span>
       </div>
-      <p class="subtitle">Sistem Otomasi Pengumpulan Tugas Moodle</p>
-      
+      <p class="footnote" style="margin-bottom: 20px;">Masukkan password dashboard untuk melanjutkan.</p>
       <form id="login-form">
         <div class="form-group">
-          <label for="app-password">Password Dashboard</label>
-          <input type="password" id="app-password" placeholder="Masukkan APP_PASSWORD..." required autocomplete="current-password">
+          <input type="password" id="app-password" class="apple-input" placeholder="Password Dashboard..." required autocomplete="current-password">
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Masuk ke Dashboard</button>
-        <p id="login-error" class="error-text hidden"></p>
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 14px;">Masuk</button>
+        <p id="login-error" class="error-text hidden" style="margin-top: 10px;"></p>
       </form>
     </div>
   </div>
 
-  <!-- Main App Layout -->
-  <div id="app-container" class="app-layout hidden">
-    <!-- Navbar -->
-    <header class="navbar">
-      <div class="nav-brand">
-        <div class="logo-box">⚡</div>
-        <div>
-          <h1>Hebat Submitter</h1>
-          <span class="nav-status-badge" id="badge-phase">IDLE</span>
+  <div id="app-container" class="app-layout">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="header-brand">
+          <span class="system-name">KumpulTepat</span>
+        </div>
+        <!-- Header Status Indicator -->
+        <div class="header-status">
+          <span class="status-dot" id="status-dot"></span>
+          <span class="status-text" id="status-text">Memuat...</span>
         </div>
       </div>
-      <div class="nav-actions">
-        <span id="dry-run-indicator" class="tag-dry-run">DRY RUN</span>
-        <button id="btn-logout" class="btn btn-outline btn-sm">Keluar</button>
-      </div>
+
+      <!-- Segmented Control Desktop -->
+      <nav aria-label="Navigasi utama" class="nav-desktop">
+        <div class="nav-container">
+          <div class="segmented-control" role="tablist">
+            <button class="seg-btn active" data-tab="tab-beranda" type="button">Beranda</button>
+            <button class="seg-btn" data-tab="tab-berkas" type="button">Berkas</button>
+            <button class="seg-btn" data-tab="tab-log" type="button">Log</button>
+            <button class="seg-btn" data-tab="tab-pengaturan" type="button">Pengaturan</button>
+          </div>
+        </div>
+      </nav>
     </header>
 
-    <main class="content-grid">
-      <!-- Left Column: Status, Countdown, Actions -->
-      <section class="card status-card">
-        <div class="card-header">
-          <h3>Status Sistem</h3>
-          <span id="server-offset-text" class="text-muted text-sm">Offset: 0 ms</span>
+    <main class="app-content">
+      <!-- ================= TAB 1: BERANDA ================= -->
+      <section id="tab-beranda" class="tab-panel active">
+        <div class="page-lead">
+          <h1 class="screen-title" id="lead-title">Memuat jadwal...</h1>
+          <p class="footnote" id="lead-subtitle">Moodle UNAIR</p>
         </div>
 
-        <div class="countdown-banner">
-          <div class="countdown-label">WAKTU HINGGA UNLOCK BERIKUTNYA</div>
-          <div id="countdown-timer" class="countdown-time">-- : -- : --</div>
-          <div id="unlock-target-text" class="countdown-sub">Target: Menunggu kalkulasi...</div>
+        <!-- Timer / Countdown Card -->
+        <section aria-label="Hitung mundur waktu pembukaan" class="countdown-section">
+          <span class="countdown-badge" id="countdown-badge-text">Sisa Waktu Peluncuran</span>
+          <div class="countdown-display" id="countdown-timer">-- : -- : --</div>
+          <p class="footnote" id="countdown-subtext">Perkiraan waktu server, sinkronisasi otomatis.</p>
+        </section>
+
+        <!-- Kesiapan Sistem -->
+        <div class="group-wrapper">
+          <h2 class="group-header">Kesiapan sistem</h2>
+          <div class="group-card">
+            <div class="list-row">
+              <span class="row-label">Berkas PDF</span>
+              <div style="display: flex; align-items: center;">
+                <span class="row-value mono" id="row-file-name">Belum ada berkas</span>
+                <span class="row-indicator neutral" id="row-file-icon">
+                  <svg class="icon"><use href="#icon-cross"></use></svg>
+                </span>
+              </div>
+            </div>
+            <div class="list-row">
+              <span class="row-label">Sesi Moodle</span>
+              <div style="display: flex; align-items: center;">
+                <span class="row-value strong" id="row-session-status">Siap</span>
+                <span class="row-indicator ok" id="row-session-icon">
+                  <svg class="icon"><use href="#icon-check"></use></svg>
+                </span>
+              </div>
+            </div>
+            <div class="list-row">
+              <span class="row-label">Tugas terdeteksi</span>
+              <div style="display: flex; align-items: center; max-width: 65%;">
+                <span class="row-value" id="row-assign-name">Belum dipindai</span>
+                <span class="row-indicator neutral" id="row-assign-icon">
+                  <svg class="icon"><use href="#icon-cross"></use></svg>
+                </span>
+              </div>
+            </div>
+            <div class="list-row">
+              <span class="row-label">Draft terunggah</span>
+              <div style="display: flex; align-items: center;">
+                <span class="row-value mono" id="row-draft-item">Tidak ada</span>
+                <span class="row-indicator neutral" id="row-draft-icon">
+                  <svg class="icon"><use href="#icon-cross"></use></svg>
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="info-list">
-          <div class="info-item">
-            <span class="info-label">Fase Saat Ini</span>
-            <span id="info-phase" class="info-value font-mono">IDLE</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">Assignment Terdeteksi</span>
-            <span id="info-assignment" class="info-value">Belum dipindai</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">Status Tugas</span>
-            <span id="info-locked" class="info-value">--</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">Draft Item ID</span>
-            <span id="info-draft" class="info-value font-mono">Tidak ada</span>
+        <!-- Tombol Aksi Utama Kontekstual -->
+        <div class="action-block">
+          <button id="btn-main-action" class="btn btn-block btn-tinted-disarm" type="button">Aktifkan (ARM)</button>
+        </div>
+
+        <!-- Diagnostik & Persiapan -->
+        <div class="group-wrapper">
+          <h2 class="group-header">Diagnostik dan persiapan</h2>
+          <div class="group-card">
+            <div class="list-row interactive-row" id="action-check-row">
+              <div class="row-main">
+                <span class="row-label">Periksa koneksi</span>
+                <span class="row-meta" id="row-check-meta">Klik untuk memindai status tugas di Moodle</span>
+              </div>
+              <span class="row-indicator neutral">
+                <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+              </span>
+            </div>
+            <div class="list-row interactive-row" id="action-prepare-row">
+              <div class="row-main">
+                <span class="row-label">Siapkan sekarang</span>
+                <span class="row-meta" id="row-prepare-meta">Unggah file ke draft area sebelum jam buka</span>
+              </div>
+              <span class="row-indicator neutral">
+                <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+              </span>
+            </div>
           </div>
         </div>
 
-        <div class="action-grid">
-          <button id="btn-check" class="btn btn-secondary">🔍 Pindai (Check)</button>
-          <button id="btn-prepare" class="btn btn-secondary">📦 Persiapkan (Prepare)</button>
-          <button id="btn-arm" class="btn btn-success">🛡️ Aktifkan (ARM)</button>
-          <button id="btn-disarm" class="btn btn-danger">⏹️ Batalkan (DISARM)</button>
+        <!-- Hasil Pengumpulan Terakhir -->
+        <div class="group-wrapper">
+          <h2 class="group-header">Hasil pengumpulan terakhir</h2>
+          <div class="group-card">
+            <div class="list-row">
+              <span class="row-label">Status</span>
+              <span class="row-value strong" id="row-last-status" style="color: #34C759;">--</span>
+            </div>
+            <div class="list-row">
+              <span class="row-label">Waktu kirim</span>
+              <span class="row-value mono" id="row-last-time">-- ms</span>
+            </div>
+            <div class="list-row">
+              <span class="row-label">Nama berkas</span>
+              <span class="row-value mono" id="row-last-file">--</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- Right Column: File Upload & Settings -->
-      <section class="card">
-        <div class="card-header">
-          <h3>File Tugas (PDF)</h3>
+      <!-- ================= TAB 2: BERKAS ================= -->
+      <section id="tab-berkas" class="tab-panel hidden">
+        <div class="page-lead">
+          <h1 class="screen-title">Pengelolaan Berkas</h1>
+          <p class="footnote">Unggah file PDF tugas yang akan dikumpulkan otomatis.</p>
         </div>
-        
-        <div id="dropzone" class="dropzone">
-          <input type="file" id="file-input" accept="application/pdf" class="file-input-hidden">
-          <div class="dropzone-content">
-            <div class="dropzone-icon">📄</div>
-            <p class="dropzone-text"><strong>Klik untuk memilih file</strong> atau seret file PDF ke sini</p>
-            <p class="dropzone-sub">Maksimal 10 MB (Format PDF murni)</p>
+
+        <div class="group-wrapper">
+          <div class="group-card" style="padding: 24px; text-align: center;">
+            <div id="dropzone" class="apple-dropzone">
+              <input type="file" id="file-input" accept="application/pdf" style="display: none;">
+              <div style="font-size: 38px; margin-bottom: 10px;">📄</div>
+              <p style="font-size: 15px; font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">Pilih atau seret berkas PDF ke sini</p>
+              <p class="footnote">Maksimal 10 MB. File akan disimpan secara aman di Cloudflare Durable Object.</p>
+            </div>
+
+            <div id="file-card-details" class="hidden" style="margin-top: 16px; padding: 16px; background: rgba(0,0,0,0.02); border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
+              <div style="text-align: left;">
+                <div id="active-file-name" class="mono" style="font-weight: 600; font-size: 14.5px;">file.pdf</div>
+                <div id="active-file-size" class="footnote">0 KB</div>
+              </div>
+              <button id="btn-delete-file" class="btn btn-sm" style="background: #FFE5E7; color: #D70015; padding: 6px 12px; font-size: 13px;">Hapus</button>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div id="file-details" class="file-details hidden">
-          <div class="file-meta">
-            <span id="file-name" class="font-bold">modul.pdf</span>
-            <span id="file-size" class="text-muted text-sm">0 KB</span>
+      <!-- ================= TAB 3: LOG ================= -->
+      <section id="tab-log" class="tab-panel hidden">
+        <div class="page-lead">
+          <h1 class="screen-title">Log Sistem</h1>
+          <p class="footnote">Riwayat aktivitas Worker dan Moodle (seluruh rahasia disanitasi otomatis).</p>
+        </div>
+
+        <div class="group-wrapper">
+          <div class="group-card">
+            <div id="logs-container" style="max-height: 480px; overflow-y: auto;">
+              <div id="logs-list">
+                <div class="list-row">
+                  <span class="row-label text-subtle">Memuat riwayat log...</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <button id="btn-delete-file" class="btn btn-sm btn-danger">Hapus File</button>
+        </div>
+      </section>
+
+      <!-- ================= TAB 4: PENGATURAN ================= -->
+      <section id="tab-pengaturan" class="tab-panel hidden">
+        <div class="page-lead">
+          <h1 class="screen-title">Pengaturan</h1>
+          <p class="footnote">Konfigurasi assignment target dan preferensi otomasi.</p>
         </div>
 
-        <hr class="divider">
-
-        <div class="card-header">
-          <h3>Pengaturan Assignment</h3>
-        </div>
         <form id="config-form">
-          <div class="form-group">
-            <label for="cfg-course-id">Course ID</label>
-            <input type="text" id="cfg-course-id" required>
+          <div class="group-wrapper">
+            <h2 class="group-header">Moodle Assignment</h2>
+            <div class="group-card" style="padding: 16px;">
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label class="apple-label" for="cfg-course-id">Course ID</label>
+                <input type="text" id="cfg-course-id" class="apple-input" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label class="apple-label" for="cfg-assign-name">Pola Nama Tugas</label>
+                <input type="text" id="cfg-assign-name" class="apple-input" required placeholder="Contoh: Pengumpulan Modul Prak Lab">
+              </div>
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label class="apple-label" for="cfg-unlock-override">Override Waktu Unlock (Opsional ISO)</label>
+                <input type="text" id="cfg-unlock-override" class="apple-input" placeholder="2026-10-21T00:00:00.000Z">
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+                <input type="checkbox" id="cfg-auto-weekly" style="width: 16px; height: 16px; accent-color: #0071E3;">
+                <label for="cfg-auto-weekly" style="font-size: 14px; font-weight: 500; color: #1D1D1F; cursor: pointer;">Jadwalkan otomatis setiap minggu (Auto-Weekly)</label>
+              </div>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="cfg-assign-name">Pola Nama Tugas</label>
-            <input type="text" id="cfg-assign-name" required placeholder="Contoh: Pengumpulan Modul Prak Lab">
-          </div>
-          <div class="form-group">
-            <label for="cfg-unlock-override">Override Waktu Unlock (Opsional)</label>
-            <input type="text" id="cfg-unlock-override" placeholder="Format ISO: 2026-10-21T00:00:00.000Z">
-          </div>
-          <div class="form-checkbox">
-            <input type="checkbox" id="cfg-auto-weekly">
-            <label for="cfg-auto-weekly">Aktifkan otomatis setiap minggu (Auto-Weekly)</label>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block">Simpan Pengaturan</button>
-        </form>
-      </section>
 
-      <!-- Logs Section (Full Width) -->
-      <section class="card full-width">
-        <div class="card-header">
-          <h3>Log Sistem Terstruktur (Tersanitasi)</h3>
-          <button id="btn-refresh-logs" class="btn btn-sm btn-outline">🔄 Refresh</button>
-        </div>
-        <div class="table-container">
-          <table class="log-table">
-            <thead>
-              <tr>
-                <th style="width: 180px;">Waktu</th>
-                <th style="width: 90px;">Level</th>
-                <th>Peristiwa (Event)</th>
-                <th>Data</th>
-              </tr>
-            </thead>
-            <tbody id="logs-tbody">
-              <tr><td colspan="4" class="text-center text-muted">Memuat log...</td></tr>
-            </tbody>
-          </table>
+          <div class="action-block">
+            <button type="submit" class="btn btn-primary btn-block">Simpan Pengaturan</button>
+          </div>
+        </form>
+
+        <div class="group-wrapper">
+          <h2 class="group-header">Lainnya</h2>
+          <div class="group-card">
+            <div class="list-row interactive-row" id="btn-test-telegram">
+              <div class="row-main">
+                <span class="row-label">Uji Notifikasi Telegram</span>
+                <span class="row-meta">Kirim pesan uji coba ke bot Telegram Anda</span>
+              </div>
+              <span class="row-indicator neutral">
+                <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+              </span>
+            </div>
+            <div class="list-row interactive-row" id="btn-logout">
+              <div class="row-main">
+                <span class="row-label" style="color: #D70015;">Keluar (Logout)</span>
+                <span class="row-meta">Hapus sesi login dashboard dari browser ini</span>
+              </div>
+              <span class="row-indicator neutral">
+                <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+              </span>
+            </div>
+          </div>
         </div>
       </section>
     </main>
+
+    <!-- Navigasi Mobile Bawah -->
+    <nav aria-label="Navigasi mobile" class="nav-mobile">
+      <div class="tab-bar">
+        <button class="tab-item active" data-tab="tab-beranda" type="button">
+          <span>Beranda</span>
+        </button>
+        <button class="tab-item" data-tab="tab-berkas" type="button">
+          <span>Berkas</span>
+        </button>
+        <button class="tab-item" data-tab="tab-log" type="button">
+          <span>Log</span>
+        </button>
+        <button class="tab-item" data-tab="tab-pengaturan" type="button">
+          <span>Pengaturan</span>
+        </button>
+      </div>
+    </nav>
   </div>
 
   <script src="app.js"></script>

@@ -25,8 +25,9 @@ Catatan pengujian hipotesis (H1–H8) dan fakta terverifikasi sistem auto-submit
 | F12 | Layout mata kuliah menggunakan format multi-section/section-page (`course/section.php?id=75330`). Pencarian modul mencakup fallback parsing halaman section. | Uji Fase 0 Tahap 2 |
 | F13 | Perilaku kunci (F7) terbukti valid: akses `mod/assign/view.php?id=101761` me-redirect 303 ke `course/view.php?id=10978`. | Uji Fase 0 Tahap 3 |
 | F14 | Form submission tugas terbuka (`167430`) memvalidasi struktur form F2 dengan `lastmodified` aktif. | Uji Fase 0 Tahap 6 |
+| F15 | **LIVE SUBMISSION TERBUKTI SUKSES**: Submission nyata via HTTP murni pada cmid `167430` berhasil terverifikasi "Submitted for grading" dengan file `tugas_test_autosubmit.pdf` terlampir di Moodle. Durasi POST: 668 ms. | Uji Live Mandiri (14 Okt 2026) |
 
-## Log Latensi Terukur (Fase 0 - Koneksi Lokal ke Server UNAIR)
+## Log Latensi Terukur (Koneksi Lokal ke Server UNAIR)
 
 | Tahap | Operasi | Latensi Terukur | Catatan |
 |---|---|---|---|
@@ -35,4 +36,5 @@ Catatan pengujian hipotesis (H1–H8) dan fakta terverifikasi sistem auto-submit
 | 3 | Check Lock Status | **556 ms** | GET view.php terkunci -> 303 redirect |
 | 4 | Upload Draft (K1) | **166 ms** | POST repository_ajax.php (upload file PDF) |
 | 6 | Fetch Edit Form | **449 ms** | GET view.php?action=editsubmission |
-| **Total Estimasi Jam-H** | **Unlock -> Submit** | **≈ 1.0 – 1.4 detik** | Polling (180ms) + GET form (450ms) + POST submit (~450ms) |
+| **LIVE** | **POST savesubmission (Live)** | **668 ms** | Kirim submission nyata ke server UNAIR |
+| **Total Estimasi Jam-H** | **Unlock -> Submit** | **≈ 1.0 – 1.3 detik** | Polling (180ms) + GET form (450ms) + POST submit (668ms) |

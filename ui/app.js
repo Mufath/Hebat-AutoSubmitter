@@ -336,11 +336,24 @@ async function refreshStatus() {
       statusText.textContent = 'Gagal';
     }
 
-    // Lead Subtitle
-    if (status.assignment) {
+    // Lead & Schedule
+    const fileNamingHint = document.getElementById('file-naming-hint');
+    if (status.activeSchedule) {
+      leadTitle.textContent = `Week ${status.activeSchedule.week} (Praktikum)`;
+      leadSubtitle.textContent = status.activeSchedule.assignmentName;
+      if (fileNamingHint) {
+        fileNamingHint.textContent = `PrakSO_[I1-I4]_Week${status.activeSchedule.week}_[NIM].pdf`;
+      }
+    } else if (status.assignment) {
       leadSubtitle.textContent = status.assignment.name;
+    }
+
+    if (status.assignment) {
       rowAssignName.textContent = status.assignment.name;
       setRowIcon(rowAssignIcon, true);
+    } else if (status.activeSchedule) {
+      rowAssignName.textContent = status.activeSchedule.assignmentName;
+      setRowIcon(rowAssignIcon, false);
     } else {
       rowAssignName.textContent = 'Belum dipindai';
       setRowIcon(rowAssignIcon, false);

@@ -12,6 +12,7 @@ import { checkAssignmentLock, fetchSubmissionForm, submitAssignment } from './mo
 import { getNextWednesdayUnlockUtc, sampleServerOffset, sleepUntil } from './time';
 import { Logger, LogEntry } from './log';
 import { sendTelegramNotification } from './notify';
+import { getActivePracticalSchedule } from './schedule';
 import type { DiscoveredAssignment } from './moodle/types';
 
 export type JobPhase =
@@ -109,6 +110,23 @@ export class SubmitJob extends DurableObject<Env> {
     await this.appendLog('INFO', `Phase changed to ${phase}`);
   }
 
+  private resolveTarget(config: JobConfig): { assignmentName: string; sectionUrl?: string } {
+    let assignmentName = config.assignmentName;
+    let sectionUrl = config.sectionUrl;
+
+    if (config.courseId === '10978') {
+      const activeSchedule = getActivePracticalSchedule();
+      if (!config.assignmentName || config.assignmentName === 'Pengumpulan Modul Prak Lab' || config.autoWeekly) {
+        assignmentName = activeSchedule.assignmentName;
+      }
+      if (!sectionUrl) {
+        sectionUrl = `course/section.php?id=${activeSchedule.sectionId}`;
+      }
+    }
+
+    return { assignmentName, sectionUrl };
+  }
+
   // --------------------------------------------------------------------------
   // Public RPC Methods (called by index.ts)
   // --------------------------------------------------------------------------
@@ -123,6 +141,7 @@ export class SubmitJob extends DurableObject<Env> {
     const serverOffsetMs = (await this.ctx.storage.get<number>('serverOffsetMs')) || 0;
     const lastResult = await this.ctx.storage.get<LastResult>('lastResult');
     const alarmTime = await this.ctx.storage.getAlarm();
+    const activeSchedule = config.courseId === '10978' ? getActivePracticalSchedule() : null;
 
     return {
       phase,
@@ -135,6 +154,7 @@ export class SubmitJob extends DurableObject<Env> {
       lastResult: lastResult || null,
       alarmScheduledAt: alarmTime || null,
       dryRun: this.env.DRY_RUN !== 'false',
+      activeSchedule,
     };
   }
 
@@ -199,13 +219,14 @@ export class SubmitJob extends DurableObject<Env> {
       return { ok: false, error: loginRes.error };
     }
 
+    const target = this.resolveTarget(config);
     const discRes = await discoverAssignment(
       jar,
       bud,
       baseUrl,
       config.courseId,
-      config.assignmentName,
-      config.sectionUrl
+      target.assignmentName,
+      target.sectionUrl
     );
 
     let isLocked = true;
@@ -243,6 +264,9 @@ export class SubmitJob extends DurableObject<Env> {
 
     if (config.unlockAtOverride) {
       unlockTimeMs = Date.parse(config.unlockAtOverride);
+    } else if (config.courseId === '10978') {
+      const activeSchedule = getActivePracticalSchedule();
+      unlockTimeMs = activeSchedule.unlockEpochMs;
     } else {
       unlockTimeMs = getNextWednesdayUnlockUtc();
     }
@@ -331,16 +355,17 @@ export class SubmitJob extends DurableObject<Env> {
     }
 
     // 2. Discover Assignment & Course Context ID
+    const target = this.resolveTarget(config);
     const discRes = await discoverAssignment(
       jar,
       bud,
       baseUrl,
       config.courseId,
-      config.assignmentName,
-      config.sectionUrl
+      target.assignmentName,
+      target.sectionUrl
     );
     if (!discRes.assignment) {
-      await this.appendLog('ERROR', `Alarm A failed: assignment "${config.assignmentName}" not found`);
+      await this.appendLog('ERROR', `Alarm A failed: assignment "${target.assignmentName}" not found`);
       await this.setPhase('FAILED');
       return;
     }

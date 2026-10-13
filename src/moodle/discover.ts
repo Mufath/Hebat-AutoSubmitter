@@ -28,16 +28,22 @@ export async function discoverAssignment(
 
   let allAssignments = parseAssignments(html);
 
-  // If no assignments found, try section page (for 'One section per page' course format)
-  if (allAssignments.length === 0) {
+  // If a specific sectionUrl is provided or if no assignments found on main page, fetch section page
+  if (sectionUrl || allAssignments.length === 0) {
     const targetSectionUrl = sectionUrl
       ? (sectionUrl.startsWith('http') ? sectionUrl : `${baseUrl}/${sectionUrl.replace(/^\//, '')}`)
       : `${baseUrl}/course/section.php?id=75330`;
 
     const sectionPage = await mfetch(jar, bud, targetSectionUrl);
     const sectionHtml = await sectionPage.res.text();
-    html = sectionHtml;
-    allAssignments = parseAssignments(sectionHtml);
+    const sectionAssignments = parseAssignments(sectionHtml);
+    // Prioritize section assignments by prepending them
+    for (let i = sectionAssignments.length - 1; i >= 0; i--) {
+      const sa = sectionAssignments[i];
+      if (!allAssignments.some(a => a.cmid === sa.cmid)) {
+        allAssignments.unshift(sa);
+      }
+    }
   }
 
   // Match assignment by pattern

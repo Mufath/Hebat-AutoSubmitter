@@ -162,3 +162,35 @@ describe('Budget', () => {
     expect(() => budget.take(1)).toThrow('SUBREQUEST_BUDGET_EXCEEDED');
   });
 });
+
+import { SO_PRACTICAL_SCHEDULE, getActivePracticalSchedule } from '../src/schedule';
+
+describe('SO Practical Schedule Mapping', () => {
+  it('should contain all 7 weeks from Week 8 to Week 14', () => {
+    expect(SO_PRACTICAL_SCHEDULE).toHaveLength(7);
+    expect(SO_PRACTICAL_SCHEDULE[0].week).toBe(8);
+    expect(SO_PRACTICAL_SCHEDULE[0].sectionId).toBe('75330');
+    expect(SO_PRACTICAL_SCHEDULE[0].assignmentName).toContain('Modul Prak Lab 10');
+
+    expect(SO_PRACTICAL_SCHEDULE[6].week).toBe(14);
+    expect(SO_PRACTICAL_SCHEDULE[6].sectionId).toBe('75336');
+    expect(SO_PRACTICAL_SCHEDULE[6].assignmentName).toContain('Challenge Lab. C dan D');
+  });
+
+  it('should accurately resolve Week 8 for 14 October 2026 morning', () => {
+    const oct14Morning = new Date('2026-10-14T02:00:00+07:00').getTime();
+    const active = getActivePracticalSchedule(oct14Morning);
+    expect(active.week).toBe(8);
+    expect(active.sectionId).toBe('75330');
+    expect(active.assignmentName).toBe('Pengumpulan Modul Prak Lab 10 NDG Linux Essential');
+  });
+
+  it('should accurately resolve Week 9 for 20 October 2026', () => {
+    const oct20 = new Date('2026-10-20T12:00:00+07:00').getTime();
+    const active = getActivePracticalSchedule(oct20);
+    expect(active.week).toBe(9);
+    expect(active.sectionId).toBe('75331');
+    expect(active.assignmentName).toBe('Pengumpulan Modul Prak Lab 11 NDG Linux Essential');
+  });
+});
+

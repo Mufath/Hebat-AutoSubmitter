@@ -390,18 +390,15 @@ export class SubmitJob extends DurableObject<Env> {
 
     const dryRun = config.dryRun !== undefined ? config.dryRun : (this.env.DRY_RUN !== 'false');
     const tSubmitStart = Date.now();
-    let submitRes = { ok: true, status: { isSubmitted: true, statusText: 'Submitted for grading (Dry Run)' } };
-
-    if (!dryRun) {
-      submitRes = await submitAssignment(
-        jar,
-        bud,
-        baseUrl,
-        assignment.cmid,
-        formFields,
-        uploadRes.itemid
-      );
-    }
+    const submitRes = await submitAssignment(
+      jar,
+      bud,
+      baseUrl,
+      assignment.cmid,
+      formFields,
+      uploadRes.itemid,
+      dryRun
+    );
     const tSubmitElapsed = Date.now() - tSubmitStart;
 
     const lastResult: LastResult = {

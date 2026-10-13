@@ -2,27 +2,37 @@
 
 Catatan pengujian hipotesis (H1–H8) dan fakta terverifikasi sistem auto-submit Moodle UNAIR.
 
-## Status Hipotesis
+## Status Hipotesis (Diperbarui Fase 0)
 
 | Hipotesis | Deskripsi | Status | Bukti / Catatan |
 |---|---|---|---|
-| **H1** | Login via HTTP (`GET` logintoken + `POST` form urlencoded) menghasilkan cookie `MoodleSession`. | Belum teruji | Akan diuji pada Fase 0 Tahap 1. |
-| **H2** | Upload draft sebelum tugas terbuka memakai konteks course (`ctx_id` = context course) via `repository_ajax.php?action=upload`. | Belum teruji | Akan diuji pada Fase 0 Tahap 4 (Kandidat K1-K4). |
-| **H3** | Draft `itemid` baru bisa diciptakan tanpa membuka form edit (itemid acak 9-digit / web service). | Belum teruji | Akan diuji pada Fase 0 Tahap 4. |
-| **H4** | Simpan submission membutuhkan `lastmodified` dari form (`GET editsubmission` lalu `POST savesubmission`). | Belum teruji | Akan diuji pada Fase 0 Tahap 6. |
-| **H5** | Alternatif simpan submission via AJAX `mod_assign_save_submission`. | Belum teruji | Cadangan jika H4 tidak optimal. |
+| **H1** | Login via HTTP (`GET` logintoken + `POST` form urlencoded) menghasilkan cookie `MoodleSession`. | **TERBUKTI** | Sukses login via HTTP murni di Fase 0 Tahap 1. Mendapatkan `MoodleSession`, mengikuti redirect ke `testsession` -> `/my/`, dan mengekstrak `sesskey`. Latensi total: 2717 ms. |
+| **H2** | Upload draft sebelum tugas terbuka memakai konteks course (`ctx_id` = context course) via `repository_ajax.php?action=upload`. | **TERBUKTI (K1)** | Kandidat K1 sukses! Upload dummy PDF menggunakan `ctx_id` = 288276 (course context) dan itemid acak 9-digit mengembalikan status 200 dengan metadata file tanpa error. Latensi: 166 ms. |
+| **H3** | Draft `itemid` baru bisa diciptakan tanpa membuka form edit (itemid acak 9-digit). | **TERBUKTI** | ItemID acak 9 digit (`505205942`) langsung diterima oleh endpoint `repository_ajax.php` dan terkonfirmasi valid. |
+| **H4** | Simpan submission membutuhkan `lastmodified` dari form (`GET editsubmission` lalu `POST savesubmission`). | **TERBUKTI** | Terverifikasi pada cmid `167430` (tugas terbuka): field `lastmodified` ada (nilai epoch `1791912170`) bersama hidden fields: `id`, `userid`, `action`, `sesskey`, `_qf__mod_assign_submission_form`, `mform_isexpanded_id_submissionheader`, `files_filemanager`. |
+| **H5** | Alternatif simpan submission via AJAX `mod_assign_save_submission`. | **GUGUR / TIDAK TERSEDIA** | AJAX web service Moodle UNAIR memunculkan pesan error: `servicenotavailable` ("Web service is not available"). Sistem wajib memakai jalur form (H4). |
 | **H6** | Di Workers, `Date.now()` hanya maju setelah I/O -> `sleepUntil` dengan `setTimeout`. | Belum teruji | Akan diverifikasi di Fase 2. |
 | **H7** | Presisi alarm Durable Object cukup dengan bangun lebih awal + `sleepUntil`. | Belum teruji | Akan diverifikasi di Fase 2. |
-| **H8** | Parsing form edit (~230 KB) muat dalam 10 ms CPU Workers. | Belum teruji | Akan diverifikasi di Fase 1 (benchmark) & Fase 2. |
+| **H8** | Parsing form edit (~230 KB) muat dalam 10 ms CPU Workers. | Belum teruji | Regex ekstraksi hidden input sederhana berjalan instan (< 1 ms di Node). Akan diuji batas CPU di Worker Fase 2. |
 
 ## Fakta Terverifikasi Baru
 
 | # | Fakta | Sumber |
 |---|---|---|
-| F9 | Course ID target: `10978` ("2026Ganjil - FST25605011 - Sistem Operasi (Praktikum)"), section `75330`. | Investigasi pemilik |
-| F10 | Pola nama assignment target: `Pengumpulan Modul Prak Lab X` (contoh modul 10: cmid `101761`). | Investigasi pemilik |
-| F11 | Moodle AJAX API `core_course_get_contents` (`POST /lib/ajax/service.php?sesskey=...`) dapat digunakan untuk discovery daftar assignment secara terstruktur. | Investigasi pemilik |
+| F9 | Course ID target: `10978` ("2026Ganjil - FST25605011 - Sistem Operasi (Praktikum)"), Course Context ID: `288276`. | Uji Fase 0 |
+| F10 | Assignment target terdeteksi: cmid `101761`, nama: `"Pengumpulan Modul Prak Lab 10 NDG Linux Essential  Assignment"`. | Uji Fase 0 |
+| F11 | Moodle UNAIR membatasi AJAX external web services untuk mahasiswa (`errorcode: servicenotavailable`). Discovery dan submission tidak bisa mengandalkan web service JSON. | Uji Fase 0 Tahap 2 |
+| F12 | Layout mata kuliah menggunakan format multi-section/section-page (`course/section.php?id=75330`). Pencarian modul mencakup fallback parsing halaman section. | Uji Fase 0 Tahap 2 |
+| F13 | Perilaku kunci (F7) terbukti valid: akses `mod/assign/view.php?id=101761` me-redirect 303 ke `course/view.php?id=10978`. | Uji Fase 0 Tahap 3 |
+| F14 | Form submission tugas terbuka (`167430`) memvalidasi struktur form F2 dengan `lastmodified` aktif. | Uji Fase 0 Tahap 6 |
 
-## Log Latensi Terukur (Fase 0)
+## Log Latensi Terukur (Fase 0 - Koneksi Lokal ke Server UNAIR)
 
-*Akan diisi setelah eksekusi Fase 0.*
+| Tahap | Operasi | Latensi Terukur | Catatan |
+|---|---|---|---|
+| 1 | Login HTTP Total | **2717 ms** | Termasuk GET login token, POST credentials, dan 2x redirect hop |
+| 2 | Discover Assignment | **964 ms** | GET course/view.php + section.php |
+| 3 | Check Lock Status | **556 ms** | GET view.php terkunci -> 303 redirect |
+| 4 | Upload Draft (K1) | **166 ms** | POST repository_ajax.php (upload file PDF) |
+| 6 | Fetch Edit Form | **449 ms** | GET view.php?action=editsubmission |
+| **Total Estimasi Jam-H** | **Unlock -> Submit** | **≈ 1.0 – 1.4 detik** | Polling (180ms) + GET form (450ms) + POST submit (~450ms) |

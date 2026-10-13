@@ -112,21 +112,29 @@ async function mfetch(jar, url, init = {}, maxHops = 6) {
       reqHeaders['cookie'] = cookieHeader;
     }
 
-    const res = await fetch(targetUrl, {
-      ...init,
+    const fetchInit = {
       method,
       body,
       redirect: 'manual',
       headers: reqHeaders,
-    });
+    };
 
+    const res = await fetch(targetUrl, fetchInit);
     jar.ingest(res);
+
+    safeLog('DEBUG', `[HOP ${hop}] ${method} ${targetUrl} -> status ${res.status}`);
     const loc = res.headers.get('location');
+    if (loc) {
+      safeLog('DEBUG', `[HOP ${hop}] Redirect Location: ${loc}`);
+    }
 
     if (res.status >= 300 && res.status < 400 && loc) {
       targetUrl = new URL(loc, targetUrl).toString();
       method = 'GET';
       body = undefined;
+      // Clear content-type on redirect to GET
+      delete headers['content-type'];
+      delete headers['Content-Type'];
       continue;
     }
 
@@ -173,6 +181,14 @@ async function runPhase0() {
     const logintoken = tokenMatch ? tokenMatch[1] : '';
     safeLog('INFO', `Halaman login diambil (${loginPage.elapsedMs} ms). Logintoken ditemukan: ${Boolean(logintoken)}`);
 
+    // Log all input names in the login form
+    const formMatch = loginHtml.match(/<form[^>]*action=["']([^"']*)["'][^>]*>([\s\S]*?)<\/form>/i);
+    if (formMatch) {
+      const formAction = formMatch[1];
+      const inputs = [...formMatch[2].matchAll(/<input[^>]+name=["']([^"']+)["'][^>]*>/gi)].map(m => m[1]);
+      safeLog('INFO', `Form action: ${formAction}, Inputs: ${inputs.join(', ')}`);
+    }
+
     const loginParams = new URLSearchParams();
     loginParams.set('username', MOODLE_USER);
     loginParams.set('password', MOODLE_PASS);
@@ -185,9 +201,38 @@ async function runPhase0() {
       body: loginParams.toString(),
     });
 
+    const postLoginHtml = await postLogin.res.text();
+    safeLog('INFO', `POST login status: ${postLogin.res.status}, final URL: ${postLogin.url}, hops: ${postLogin.hops}`);
+
+    // Search for potential error notices or text in login page
+    const textSnippet = postLoginHtml
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ');
+    
+    // Look for common error phrases
+    const phrases = ['invalid', 'salah', 'tidak valid', 'gagal', 'error', 'cookies must be enabled', 'suspended'];
+    for (const p of phrases) {
+      const idx = textSnippet.toLowerCase().indexOf(p);
+      if (idx !== -1) {
+        const start = Math.max(0, idx - 40);
+        const end = Math.min(textSnippet.length, idx + 60);
+        safeLog('WARN', `Ditemukan kata '${p}': "...${textSnippet.slice(start, end).trim()}..."`);
+      }
+    }
+
     const hasMoodleSession = jar.has('MoodleSession');
     const myPage = await mfetch(jar, `${MOODLE_BASE}/my/`);
+    safeLog('INFO', `GET /my/ status: ${myPage.res.status}, final URL: ${myPage.url}`);
     const myHtml = await myPage.res.text();
+
+    // Check for login error message in postLogin or myHtml
+    const errMatch = myHtml.match(/class=["'][^"']*loginerrors[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ||
+                     myHtml.match(/id=["']loginerrormessage["'][^>]*>([\s\S]*?)<\/div>/i);
+    if (errMatch) {
+      safeLog('WARN', `Login error message dari Moodle: ${errMatch[1].replace(/<[^>]+>/g, '').trim()}`);
+    }
 
     const isLoggedIn = !myPage.url.includes('/login/') && (
       myHtml.includes('usermenu') ||
@@ -236,17 +281,31 @@ async function runPhase0() {
     let ajaxAssignments = [];
     try {
       const ajaxJson = await ajaxRes.res.json();
+      safeLog('DEBUG', `ajaxJson: ${JSON.stringify(ajaxJson).slice(0, 300)}`);
       if (Array.isArray(ajaxJson) && ajaxJson[0] && Array.isArray(ajaxJson[0].data)) {
         const modules = ajaxJson[0].data.flatMap(sec => sec.modules || []);
         ajaxAssignments = modules.filter(m => m.modname === 'assign');
       }
-    } catch {
-      // JSON parse error fallback
+    } catch (e) {
+      safeLog('DEBUG', `ajaxJson error: ${e.message}`);
     }
 
     // 2.2 Ambil halaman course HTML untuk contextid dan availability text
     const coursePage = await mfetch(jar, `${MOODLE_BASE}/course/view.php?id=${COURSE_ID}`);
-    const courseHtml = await coursePage.res.text();
+    let courseHtml = await coursePage.res.text();
+
+    let allModuleMatches = [...courseHtml.matchAll(/id="module-(\d+)"[^>]*class="([^"]*)"/gi)].map(m => ({ id: m[1], cls: m[2] }));
+    safeLog('DEBUG', `Ditemukan ${allModuleMatches.length} elemen module-* di course/view.php.`);
+
+    // Jika 0, coba cek section.php?id=75330 (atau ekstrak link section dari courseHtml)
+    if (allModuleMatches.length === 0) {
+      safeLog('INFO', 'Moodle menggunakan format One Section Per Page. Mengambil course/section.php?id=75330...');
+      const sectionPage = await mfetch(jar, `${MOODLE_BASE}/course/section.php?id=75330`);
+      const sectionHtml = await sectionPage.res.text();
+      courseHtml = sectionHtml; // gunakan HTML section
+      allModuleMatches = [...courseHtml.matchAll(/id="module-(\d+)"[^>]*class="([^"]*)"/gi)].map(m => ({ id: m[1], cls: m[2] }));
+      safeLog('DEBUG', `Ditemukan ${allModuleMatches.length} elemen module-* di section.php. Sample: ${JSON.stringify(allModuleMatches.slice(0, 5))}`);
+    }
 
     const ctxMatch = courseHtml.match(/"contextid":\s*(\d+)/) || courseHtml.match(/data-contextid="(\d+)"/);
     if (ctxMatch) {
@@ -264,11 +323,34 @@ async function runPhase0() {
       detectedCmid = String(matchedAjax.id);
       detectedAssignName = matchedAjax.name;
     } else {
-      // Fallback regex ke course HTML
-      const domMatch = courseHtml.match(/id="module-(\d+)"[^>]*class="[^"]*modtype_assign[^"]*"[^>]*>[\s\S]*?class="[^"]*instancename[^"]*"[^>]*>([^<]+)/i);
-      if (domMatch) {
-        detectedCmid = domMatch[1];
-        detectedAssignName = domMatch[2].trim();
+      // Robust DOM parser for Moodle activity modules
+      const moduleLiMatches = [...courseHtml.matchAll(/<li[^>]+id=["']module-(\d+)["'][^>]*>([\s\S]*?)<\/li>/gi)];
+      for (const m of moduleLiMatches) {
+        const id = m[1];
+        const inner = m[2];
+        const isAssign = inner.includes('modtype_assign') || m[0].includes('modtype_assign');
+        // Extract readable activity title
+        const nameMatch = inner.match(/class=["'][^"']*(?:instancename|activityname)[^"']*["'][^>]*>([\s\S]*?)<\/(?:span|div|a)>/i) ||
+                          inner.match(/<a[^>]+class=["'][^"']*aal_link[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
+        const name = nameMatch ? nameMatch[1].replace(/<span[^>]*class=["']accesshide["'][\s\S]*?<\/span>/gi, '').replace(/<[^>]+>/g, '').trim() : '';
+
+        if (isAssign || name.toLowerCase().includes(lowerPat)) {
+          if (name.toLowerCase().includes(lowerPat)) {
+            detectedCmid = id;
+            detectedAssignName = name || `Assignment ${id}`;
+            break;
+          }
+        }
+      }
+
+      // Fallback: direct pattern match around module-ID
+      if (!detectedCmid) {
+        const directRegex = /id="module-(\d+)"[\s\S]{1,500}?Pengumpulan Modul Prak Lab[^<]*/i;
+        const dMatch = courseHtml.match(directRegex);
+        if (dMatch) {
+          detectedCmid = dMatch[1];
+          detectedAssignName = dMatch[0].match(/Pengumpulan Modul Prak Lab[^<]*/i)[0].trim();
+        }
       }
     }
 
@@ -278,12 +360,7 @@ async function runPhase0() {
       safeLog('PASS', `Tahap 2 PASS: Assignment ditemukan: "${detectedAssignName}" (cmid: ${detectedCmid}) [${latencies.discoverMs} ms]`);
     } else {
       safeLog('FAIL', `Tahap 2 FAIL: Tidak menemukan assignment dengan pola "${ASSIGNMENT_NAME}".`);
-      if (ajaxAssignments.length > 0) {
-        console.log('Assignment yang tersedia di course:');
-        for (const a of ajaxAssignments) {
-          console.log(` - ID: ${a.id} | Nama: ${a.name}`);
-        }
-      }
+      safeLog('INFO', `Total module li di course: ${allModuleMatches.length}.`);
       process.exit(1);
     }
   } catch (err) {

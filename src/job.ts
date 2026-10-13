@@ -308,6 +308,121 @@ export class SubmitJob extends DurableObject<Env> {
     await this.runAlarmA();
   }
 
+  /**
+   * Manually runs immediate submission (useful for testing on currently open assignments).
+   */
+  async submitNow() {
+    await this.setPhase('SUBMITTING');
+    const baseUrl = this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
+    const user = this.env.MOODLE_USER;
+    const pass = this.env.MOODLE_PASS;
+    const config = await this.getConfig();
+
+    if (!user || !pass) {
+      await this.setPhase('FAILED');
+      throw new Error('Kredensial Moodle belum diatur');
+    }
+
+    const fileBytes = await this.ctx.storage.get<Uint8Array>('file_bytes');
+    const fileMeta = await this.ctx.storage.get<StoredFileMeta>('file');
+    if (!fileBytes || !fileMeta) {
+      await this.setPhase('FAILED');
+      throw new Error('Belum ada file PDF yang diunggah di tab Berkas!');
+    }
+
+    const jar = new CookieJar();
+    const bud = new Budget(48);
+
+    // 1. Login
+    const loginRes = await loginMoodle(jar, bud, baseUrl, user, pass);
+    if (!loginRes.ok) {
+      await this.setPhase('FAILED');
+      throw new Error(`Login gagal: ${loginRes.error}`);
+    }
+
+    // 2. Discover Assignment
+    const target = this.resolveTarget(config);
+    const discRes = await discoverAssignment(
+      jar,
+      bud,
+      baseUrl,
+      config.courseId,
+      target.assignmentName,
+      target.sectionUrl
+    );
+    if (!discRes.assignment) {
+      await this.setPhase('FAILED');
+      throw new Error(`Tugas "${target.assignmentName}" tidak ditemukan`);
+    }
+    const assignment = discRes.assignment;
+
+    // 3. Upload Draft
+    const contextId = discRes.courseContextId || '1';
+    const uploadRes = await uploadDraftFile(
+      jar,
+      bud,
+      baseUrl,
+      loginRes.sesskey,
+      contextId,
+      fileMeta.name,
+      fileBytes
+    );
+    if (!uploadRes.ok) {
+      await this.setPhase('FAILED');
+      throw new Error(`Upload draft gagal: ${uploadRes.error}`);
+    }
+
+    // 4. Fetch Form & Submit
+    const formFields = await fetchSubmissionForm(jar, bud, baseUrl, assignment.cmid);
+    if (!formFields) {
+      await this.setPhase('FAILED');
+      throw new Error('Ambil form submission gagal (form belum tersedia)');
+    }
+
+    const dryRun = this.env.DRY_RUN !== 'false';
+    const tSubmitStart = Date.now();
+    let submitRes = { ok: true, status: { isSubmitted: true, statusText: 'Submitted for grading (Dry Run)' } };
+
+    if (!dryRun) {
+      submitRes = await submitAssignment(
+        jar,
+        bud,
+        baseUrl,
+        assignment.cmid,
+        formFields,
+        uploadRes.itemid
+      );
+    }
+    const tSubmitElapsed = Date.now() - tSubmitStart;
+
+    const lastResult: LastResult = {
+      status: dryRun ? 'DRY_RUN' : submitRes.ok ? 'SUCCESS' : 'FAILED',
+      tSubmitMs: tSubmitElapsed,
+      note: dryRun
+        ? 'Dry run submission completed. No mutations applied.'
+        : `Submitted for grading. Verification: ${submitRes.status.statusText}`,
+      timestamp: Date.now(),
+    };
+
+    await this.ctx.storage.put('lastResult', lastResult);
+    await this.setPhase(submitRes.ok || dryRun ? 'DONE' : 'FAILED');
+
+    // Notify Telegram
+    await sendTelegramNotification(
+      this.env.TELEGRAM_BOT_TOKEN,
+      this.env.TELEGRAM_CHAT_ID,
+      `✅ <b>Hebat_Submitter ${dryRun ? '[DRY RUN] ' : ''}Sukses!</b>\nTugas: ${assignment.name}\nDurasi submit: ${tSubmitElapsed} ms\nStatus: ${submitRes.status.statusText}`
+    );
+
+    return {
+      ok: submitRes.ok || dryRun,
+      dryRun,
+      elapsedMs: tSubmitElapsed,
+      statusText: submitRes.status.statusText,
+      assignmentName: assignment.name,
+    };
+  }
+
   // --------------------------------------------------------------------------
   // Internal Alarm Handlers
   // --------------------------------------------------------------------------

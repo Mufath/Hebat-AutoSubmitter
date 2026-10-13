@@ -174,6 +174,8 @@ const actionCheckRow = document.getElementById('action-check-row');
 const rowCheckMeta = document.getElementById('row-check-meta');
 const actionPrepareRow = document.getElementById('action-prepare-row');
 const rowPrepareMeta = document.getElementById('row-prepare-meta');
+const actionSubmitNowRow = document.getElementById('action-submit-now-row');
+const rowSubmitNowMeta = document.getElementById('row-submit-now-meta');
 
 const rowLastStatus = document.getElementById('row-last-status');
 const rowLastTime = document.getElementById('row-last-time');
@@ -476,6 +478,26 @@ actionPrepareRow.addEventListener('click', async () => {
     }
   } catch (e) {
     alert(`Error: ${e.message}`);
+  } finally {
+    refreshStatus();
+  }
+});
+
+actionSubmitNowRow.addEventListener('click', async () => {
+  if (!confirm('Apakah Anda yakin ingin mengirim tugas ini sekarang secara langsung?')) return;
+  rowSubmitNowMeta.textContent = 'Sedang mengirim tugas ke Moodle...';
+  try {
+    const res = await apiRequest('/api/submit-now', 'POST');
+    if (res.ok) {
+      alert(`Pengumpulan Berhasil! 🎉\nTugas: ${res.assignmentName}\nDurasi: ${res.elapsedMs} ms\nStatus: ${res.statusText}`);
+      rowSubmitNowMeta.textContent = `Sukses terkirim (${res.elapsedMs} ms)`;
+    } else {
+      alert(`Gagal: ${res.error || 'Terjadi kesalahan'}`);
+      rowSubmitNowMeta.textContent = `Gagal: ${res.error || 'Terjadi kesalahan'}`;
+    }
+  } catch (e) {
+    alert(`Error: ${e.message}`);
+    rowSubmitNowMeta.textContent = `Error: ${e.message}`;
   } finally {
     refreshStatus();
   }

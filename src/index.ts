@@ -191,6 +191,12 @@ export default {
         return jsonResponse({ ok: true });
       }
 
+      // Route: POST /api/submit-now
+      if (url.pathname === '/api/submit-now' && req.method === 'POST') {
+        const res = await stub.submitNow();
+        return jsonResponse(res);
+      }
+
       // Route: POST /api/arm
       if (url.pathname === '/api/arm' && req.method === 'POST') {
         const res = await stub.arm();

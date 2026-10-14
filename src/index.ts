@@ -197,6 +197,16 @@ export default {
         return jsonResponse(res);
       }
 
+      // Route: POST /api/simulate-run
+      if (url.pathname === '/api/simulate-run' && req.method === 'POST') {
+        const body = (await req.json().catch(() => ({}))) as { seconds?: number };
+        const seconds = body.seconds || 120; // 2 minutes
+        const targetIso = new Date(Date.now() + seconds * 1000).toISOString();
+        await stub.setConfig({ unlockAtOverride: targetIso });
+        const res = await stub.arm();
+        return jsonResponse({ ok: true, targetIso, res });
+      }
+
       // Route: POST /api/arm
       if (url.pathname === '/api/arm' && req.method === 'POST') {
         const res = await stub.arm();

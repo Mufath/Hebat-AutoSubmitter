@@ -516,9 +516,9 @@ export class SubmitJob extends DurableObject<Env> {
     const offset = await sampleServerOffset(jar, bud, baseUrl);
     await this.ctx.storage.put('serverOffsetMs', offset);
 
-    // 5. Schedule Alarm B at T-60s
+    // 5. Schedule Alarm B at T-30s
     const nextUnlockAt = (await this.ctx.storage.get<number>('nextUnlockAt')) || getNextWednesdayUnlockUtc();
-    const alarmBTime = nextUnlockAt - 60 * 1000;
+    const alarmBTime = nextUnlockAt - 30 * 1000;
 
     await this.ctx.storage.put('alarmStep', 'ALARM_B');
     if (alarmBTime > Date.now()) {

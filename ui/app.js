@@ -176,6 +176,8 @@ const actionPrepareRow = document.getElementById('action-prepare-row');
 const rowPrepareMeta = document.getElementById('row-prepare-meta');
 const actionSubmitNowRow = document.getElementById('action-submit-now-row');
 const rowSubmitNowMeta = document.getElementById('row-submit-now-meta');
+const actionSimulateRow = document.getElementById('action-simulate-row');
+const rowSimulateMeta = document.getElementById('row-simulate-meta');
 
 const rowLastStatus = document.getElementById('row-last-status');
 const rowLastTime = document.getElementById('row-last-time');
@@ -332,11 +334,31 @@ async function refreshStatus() {
     if (status.phase === 'ARMED') {
       statusDot.classList.add('ok');
       statusText.textContent = 'Terjadwal (ARMED)';
+    } else if (status.phase === 'PREPARING') {
+      statusDot.classList.add('ok');
+      statusText.textContent = 'Pre-Upload Draft (Alarm A)...';
+    } else if (status.phase === 'PREPARED') {
+      statusDot.classList.add('ok');
+      statusText.textContent = 'Draft Siap (Menunggu T-30s)';
+    } else if (status.phase === 'WAITING') {
+      statusDot.classList.add('ok');
+      statusText.textContent = 'Alarm B Aktif (Menunggu T-400ms)';
+    } else if (status.phase === 'POLLING') {
+      statusDot.classList.add('ok');
+      statusText.textContent = 'Sub-Second Polling Berjalan...';
+    } else if (status.phase === 'SUBMITTING') {
+      statusDot.classList.add('ok');
+      statusText.textContent = 'Mengirim Tugas...';
+    } else if (status.phase === 'DONE') {
+      statusDot.classList.add('ok');
+      statusText.textContent = 'Selesai (DONE)';
     } else if (status.phase === 'READY') {
       statusText.textContent = 'Siap (File Ada)';
     } else if (status.phase === 'FAILED') {
       statusDot.classList.add('err');
       statusText.textContent = 'Gagal';
+    } else if (status.phase === 'IDLE') {
+      statusText.textContent = 'Menunggu Berkas';
     }
 
     // Lead & Schedule
@@ -500,6 +522,41 @@ actionSubmitNowRow.addEventListener('click', async () => {
   } catch (e) {
     alert(`Error: ${e.message}`);
     rowSubmitNowMeta.textContent = `Error: ${e.message}`;
+  } finally {
+    refreshStatus();
+  }
+});
+
+actionSimulateRow.addEventListener('click', async () => {
+  const isDryRun = cfgDryRun ? cfgDryRun.checked : true;
+  const modeStr = isDryRun
+    ? 'DRY RUN (Simulasi Aman - Tanpa Mutasi Moodle)'
+    : 'LIVE SUBMISSION (Benar-benar kirim ke Moodle)';
+  const msg =
+    `Mulai Simulasi Nyata (2 Menit)?\n\n` +
+    `Mode: ${modeStr}\n\n` +
+    `Sistem akan menjadwalkan pembukaan tugas tepat 120 detik dari sekarang dan memicu:\n` +
+    `1. Alarm A: Pre-upload berkas PDF ke draft repository Moodle\n` +
+    `2. Alarm B: Standby di T-30s\n` +
+    `3. Spin-Polling: Pengecekan status lock di T-400ms\n` +
+    `4. Submit Otomatis begitu lock terbuka\n` +
+    `5. Pengiriman notifikasi Telegram`;
+
+  if (!confirm(msg)) return;
+
+  rowSimulateMeta.textContent = 'Sedang menjadwalkan simulasi 2 menit...';
+  try {
+    const res = await apiRequest('/api/simulate-run', 'POST', { seconds: 120 });
+    if (res.ok) {
+      alert(`Simulasi Dimulai! 🚀\nWaktu peluncuran disetel ke: ${new Date(res.targetIso).toLocaleTimeString('id-ID')}\nPerhatikan hitung mundur dan status transisi di layar!`);
+      rowSimulateMeta.textContent = `Aktif! Target: ${new Date(res.targetIso).toLocaleTimeString('id-ID')}`;
+    } else {
+      alert(`Gagal: ${res.error || 'Terjadi kesalahan'}`);
+      rowSimulateMeta.textContent = `Gagal: ${res.error || 'Terjadi kesalahan'}`;
+    }
+  } catch (e) {
+    alert(`Error: ${e.message}`);
+    rowSimulateMeta.textContent = `Error: ${e.message}`;
   } finally {
     refreshStatus();
   }
@@ -671,7 +728,16 @@ btnLogout.addEventListener('click', async () => {
 (async () => {
   try {
     await refreshStatus();
-    setInterval(refreshStatus, 15000); // sync status every 15s
+    // Dynamic polling: 3s during active phases/simulation, 15s when idle/done
+    const pollLoop = async () => {
+      try {
+        await refreshStatus();
+      } catch {}
+      const activePhases = ['ARMED', 'PREPARING', 'PREPARED', 'WAITING', 'POLLING', 'SUBMITTING'];
+      const delay = appState && activePhases.includes(appState.phase) ? 3000 : 15000;
+      setTimeout(pollLoop, delay);
+    };
+    setTimeout(pollLoop, 3000);
   } catch {
     showLogin();
   }

@@ -1,0 +1,20 @@
+{
+  "name": "moodle-mock",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-10-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MOCK_DO",
+        "class_name": "MockMoodleDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MockMoodleDO"]
+    }
+  ]
+}

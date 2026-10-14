@@ -193,6 +193,7 @@ const btnDeleteFile = document.getElementById('btn-delete-file');
 
 // Config Tab
 const configForm = document.getElementById('config-form');
+const cfgMoodleTarget = document.getElementById('cfg-moodle-target');
 const cfgCourseId = document.getElementById('cfg-course-id');
 const cfgAssignName = document.getElementById('cfg-assign-name');
 const cfgUnlockOverride = document.getElementById('cfg-unlock-override');
@@ -429,6 +430,7 @@ async function refreshStatus() {
 
     // Config form values
     if (status.config) {
+      if (cfgMoodleTarget) cfgMoodleTarget.value = status.config.moodleBase || 'https://hebat.elearning.unair.ac.id';
       cfgCourseId.value = status.config.courseId || '';
       cfgAssignName.value = status.config.assignmentName || '';
       cfgUnlockOverride.value = status.config.unlockAtOverride || '';
@@ -625,6 +627,7 @@ btnDeleteFile.addEventListener('click', async () => {
 configForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const cfg = {
+    moodleBase: cfgMoodleTarget ? cfgMoodleTarget.value.trim() : undefined,
     courseId: cfgCourseId.value.trim(),
     assignmentName: cfgAssignName.value.trim(),
     unlockAtOverride: cfgUnlockOverride.value.trim() || undefined,

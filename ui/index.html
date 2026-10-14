@@ -270,6 +270,17 @@
             <h2 class="group-header">Moodle Assignment</h2>
             <div class="group-card" style="padding: 16px;">
               <div class="form-group" style="margin-bottom: 14px;">
+                <label class="apple-label" for="cfg-moodle-target">Target Server Moodle</label>
+                <select id="cfg-moodle-target" class="apple-input" style="background: #fff; cursor: pointer;">
+                  <option value="https://hebat.elearning.unair.ac.id">Moodle Hebat UNAIR Asli (hebat.elearning.unair.ac.id)</option>
+                  <option value="https://moodle-mock.mufath04.workers.dev">Sandbox Mock Moodle (moodle-mock.mufath04.workers.dev)</option>
+                </select>
+                <div style="font-size: 11.5px; color: #86868B; margin-top: 4px;">
+                  Pilih "Sandbox Mock Moodle" untuk menguji lock, pre-upload, polling, dan submit sepuasnya tanpa risiko nilai!
+                  <a href="https://moodle-mock.mufath04.workers.dev" target="_blank" style="color: #0071E3; font-weight: 500; text-decoration: underline; margin-left: 4px;">Buka Web Portal Mock ↗</a>
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom: 14px;">
                 <label class="apple-label" for="cfg-course-id">Course ID</label>
                 <input type="text" id="cfg-course-id" class="apple-input" required>
               </div>

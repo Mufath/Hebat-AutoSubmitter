@@ -35,6 +35,7 @@ export interface JobConfig {
   unlockAtOverride?: string; // ISO string
   autoWeekly: boolean;
   dryRun?: boolean;
+  moodleBase?: string;
 }
 
 export interface StoredFileMeta {
@@ -210,7 +211,7 @@ export class SubmitJob extends DurableObject<Env> {
    */
   async checkOnly() {
     const config = await this.getConfig();
-    const baseUrl = this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
+    const baseUrl = config.moodleBase || this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
     const user = this.env.MOODLE_USER;
     const pass = this.env.MOODLE_PASS;
 
@@ -322,10 +323,10 @@ export class SubmitJob extends DurableObject<Env> {
    */
   async submitNow() {
     await this.setPhase('SUBMITTING');
-    const baseUrl = this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
+    const config = await this.getConfig();
+    const baseUrl = config.moodleBase || this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
     const user = this.env.MOODLE_USER;
     const pass = this.env.MOODLE_PASS;
-    const config = await this.getConfig();
 
     if (!user || !pass) {
       await this.setPhase('FAILED');
@@ -445,10 +446,10 @@ export class SubmitJob extends DurableObject<Env> {
   }
 
   private async runAlarmA() {
-    const baseUrl = this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
+    const config = await this.getConfig();
+    const baseUrl = config.moodleBase || this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
     const user = this.env.MOODLE_USER;
     const pass = this.env.MOODLE_PASS;
-    const config = await this.getConfig();
 
     if (!user || !pass) {
       await this.appendLog('ERROR', 'Alarm A aborted: credentials not configured');
@@ -534,8 +535,8 @@ export class SubmitJob extends DurableObject<Env> {
 
   private async runAlarmB() {
     await this.setPhase('WAITING');
-    const baseUrl = this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
     const config = await this.getConfig();
+    const baseUrl = config.moodleBase || this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
     const assignment = await this.ctx.storage.get<DiscoveredAssignment>('assignment');
     const draft = await this.ctx.storage.get<{ itemId: number; createdAt: number }>('draft');
     const offset = (await this.ctx.storage.get<number>('serverOffsetMs')) || 0;

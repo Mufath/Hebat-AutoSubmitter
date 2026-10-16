@@ -1148,11 +1148,11 @@ function renderAssignmentsList() {
 
     row.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
-        <div style="flex: 1;">
-          <div style="font-size: 14.5px; font-weight: 600; color: #1D1D1F; margin-bottom: 2px;">${escapeHtml(a.name)}</div>
+        <div style="flex: 1 1 0%; min-width: 0;">
+          <div style="font-size: 14.5px; font-weight: 600; color: #1D1D1F; margin-bottom: 2px; word-break: break-word;">${escapeHtml(a.name)}</div>
           ${metaInfo}
         </div>
-        <span class="badge-status ${badgeClass}">${badgeLabel}</span>
+        <span class="badge-status ${badgeClass}" style="flex-shrink: 0;">${badgeLabel}</span>
       </div>
       <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
         <button type="button" class="btn btn-sm btn-select-assign" style="background: rgba(0,113,227,0.08); color: #0071E3; font-size: 12px; padding: 5px 12px; font-weight: 600;">
@@ -1601,6 +1601,15 @@ function initAppleSelect(select) {
   select.addEventListener('change', () => {
     updateTriggerLabel();
   });
+
+  if (select.style.flex) {
+    wrapper.style.flex = select.style.flex;
+    wrapper.style.minWidth = '0';
+  }
+  if (select.parentElement && (select.parentElement.classList.contains('course-picker-row') || window.getComputedStyle(select.parentElement).display === 'flex')) {
+    wrapper.style.flex = select.style.flex || '1 1 0%';
+    wrapper.style.minWidth = '0';
+  }
 
   // Insert wrapper before select in DOM
   select.parentNode.insertBefore(wrapper, select);

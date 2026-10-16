@@ -64,18 +64,13 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-inner">
-        <div class="header-brand" style="display: flex; align-items: center; gap: 8px;">
+        <div class="header-left">
           <span class="system-name">Hebat_Submitter</span>
-          <span id="user-nim-pill" class="footnote mono" style="background: rgba(0,0,0,0.05); color: #1D1D1F; padding: 2px 8px; border-radius: 6px; font-size: 11px;">NIM: --</span>
+          <span id="user-nim-pill" class="user-nim-pill mono">NIM: --</span>
         </div>
         <!-- Header Status & Ping Indicator -->
         <div class="header-status-wrapper">
           <div class="header-ping-pill" title="Latensi koneksi ke server Moodle">
-            <span class="ping-signal-icon" aria-hidden="true">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M0 6a8 8 0 0 1 16 0 .75.75 0 0 1-1.06 1.06A6.5 6.5 0 0 0 1.06 7.06.75.75 0 0 1 0 6zm3.5 3.5a4 4 0 0 1 9 0 .75.75 0 0 1-1.06 1.06 2.5 2.5 0 0 0-6.88 0 .75.75 0 0 1-1.06-1.06zM7 13a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/>
-              </svg>
-            </span>
             <span class="header-ping mono" id="header-ping">-- ms</span>
           </div>
           <div class="header-status">
@@ -266,12 +261,12 @@
         <!-- Pilih Mata Kuliah -->
         <div class="group-wrapper">
           <h2 class="group-header">Mata Kuliah</h2>
-          <div class="group-card" style="padding: 16px;">
-            <div style="display: flex; gap: 8px; align-items: center;">
+          <div class="group-card" style="padding: 14px 16px;">
+            <div class="course-picker-row">
               <select id="course-dropdown" class="apple-select" style="flex: 1;">
                 <option value="">Memuat daftar mata kuliah...</option>
               </select>
-              <button type="button" id="btn-reload-courses" class="btn btn-sm" style="padding: 8px 12px; font-size: 13px; background: rgba(0,0,0,0.05); color: #1D1D1F; white-space: nowrap;">
+              <button type="button" id="btn-reload-courses" class="btn btn-sm btn-reload-courses">
                 Segarkan
               </button>
             </div>

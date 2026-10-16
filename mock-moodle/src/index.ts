@@ -228,6 +228,24 @@ export class MockMoodleDO extends DurableObject<Env> {
       });
     }
 
+    // My Courses / Dashboard
+    if (url.pathname === '/my/courses.php' || url.pathname === '/my/' || url.pathname === '/my') {
+      const coursesHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><title>Dashboard Mahasiswa - Hebat Moodle</title></head>
+        <body>
+          <div class="courses-view">
+            <a href="/course/view.php?id=10978">Sistem Operasi (Praktikum)</a>
+            <a href="/course/view.php?id=10852">Algoritma & Pemrograman II</a>
+            <a href="/course/view.php?id=10733">Basis Data</a>
+          </div>
+        </body>
+        </html>
+      `;
+      return makeRes(coursesHtml, 200, { 'Content-Type': 'text/html; charset=utf-8' });
+    }
+
     // Section view: /course/section.php
     if (url.pathname === '/course/section.php') {
       const html = `
@@ -245,7 +263,40 @@ export class MockMoodleDO extends DurableObject<Env> {
 
     // Course view: /course/view.php
     if (url.pathname === '/course/view.php') {
-      return makeRes('<!DOCTYPE html><html><body>Course 10978</body></html>', 200, { 'Content-Type': 'text/html; charset=utf-8' });
+      const courseId = url.searchParams.get('id') || '10978';
+      const unlockDateStr = new Date(this.unlockTimestampMs).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head><title>Course ${courseId}</title></head>
+        <body>
+          <script>M.cfg = { contextid: "288276", sesskey: "mock_sess_${Date.now()}", userId: "12345" };</script>
+          <ul class="section img-text">
+            <li id="module-101761" class="activity assign modtype_assign">
+              <div>
+                <a class="aal_link" href="/mod/assign/view.php?id=101761"><span class="instancename">Pengumpulan Modul Prak Lab 8 NDG Linux Essential</span></a>
+                <div class="availabilityinfo isrestricted">Available from ${unlockDateStr}, 7:00 AM</div>
+                <div class="activity-dates">Due date: 22 October 2026, 23:59</div>
+              </div>
+            </li>
+            <li id="module-101762" class="activity assign modtype_assign">
+              <div>
+                <a class="aal_link" href="/mod/assign/view.php?id=101762"><span class="instancename">Tugas Analisis Penjadwalan CPU</span></a>
+                <div class="activity-dates">Due date: 18 October 2026, 23:59</div>
+              </div>
+            </li>
+            <li id="module-101763" class="activity assign modtype_assign">
+              <div>
+                <a class="aal_link" href="/mod/assign/view.php?id=101763"><span class="instancename">Laporan Praktikum Mandiri Pekan 7</span></a>
+                <div class="submissionstatussubmitted">Submitted for grading</div>
+                <div class="activity-dates">Due date: 10 October 2026, 23:59</div>
+              </div>
+            </li>
+          </ul>
+        </body>
+        </html>
+      `;
+      return makeRes(html, 200, { 'Content-Type': 'text/html; charset=utf-8' });
     }
 
     // Draft Pre-Upload: /repository/repository_ajax.php?action=upload

@@ -8,7 +8,13 @@
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <!-- WebGL Fluid Flow Canvas (Hardware Accelerated, Smooth 60FPS) -->
+  <!-- Background Video (Loads background.mp4 if present in ui/ folder) -->
+  <video id="bg-video" class="bg-video hidden" autoplay loop muted playsinline preload="auto">
+    <source src="background.mp4" type="video/mp4">
+    <source src="background.mp4.mp4" type="video/mp4">
+  </video>
+
+  <!-- WebGL Fluid Flow Canvas (Hardware Accelerated, Smooth 60FPS Fallback) -->
   <canvas aria-hidden="true" id="flow-canvas"></canvas>
   <!-- Ambient Light Overlay -->
   <div aria-hidden="true" class="canvas-overlay"></div>
@@ -21,39 +27,61 @@
     <symbol id="icon-chevron-right" viewbox="0 0 20 20">
       <path d="M7.5 4.5l5 5.5-5 5.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
     </symbol>
+    <symbol id="icon-chevron-left" viewbox="0 0 20 20">
+      <path d="M12.5 4.5l-5 5.5 5 5.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+    </symbol>
     <symbol id="icon-cross" viewbox="0 0 20 20">
       <path d="M5 5l10 10M15 5l-10 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"></path>
     </symbol>
   </svg>
 
-  <!-- Login Modal -->
-  <div id="login-modal" class="modal-overlay hidden">
+  <!-- Login Modal (Active by default until authenticated with Moodle UNAIR) -->
+  <div id="login-modal" class="modal-overlay">
     <div class="modal-box">
       <div class="header-brand" style="margin-bottom: 8px;">
         <span class="system-name">Hebat_Submitter</span>
       </div>
-      <p class="footnote" style="margin-bottom: 20px;">Masukkan password dashboard untuk melanjutkan.</p>
+      <p class="footnote" style="margin-bottom: 16px;">Masuk dengan akun Cybercampus / Moodle UNAIR Anda.</p>
       <form id="login-form">
-        <div class="form-group">
-          <input type="password" id="app-password" class="apple-input" placeholder="Password Dashboard..." required autocomplete="current-password">
+        <div class="form-group" style="margin-bottom: 12px; text-align: left;">
+          <label class="apple-label" for="login-nim" style="margin-bottom: 4px;">NIM Mahasiswa</label>
+          <input type="text" id="login-nim" class="apple-input" placeholder="Contoh: 082111633001" required autocomplete="username">
         </div>
-        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 14px;">Masuk</button>
+        <div class="form-group" style="margin-bottom: 14px; text-align: left;">
+          <label class="apple-label" for="login-moodle-pass" style="margin-bottom: 4px;">Password Cybercampus / Moodle</label>
+          <input type="password" id="login-moodle-pass" class="apple-input" placeholder="Password Cybercampus Anda..." required autocomplete="current-password">
+        </div>
+        <div style="font-size: 11.5px; color: #86868B; text-align: left; line-height: 1.4; margin-bottom: 14px; background: rgba(0,0,0,0.03); padding: 8px 10px; border-radius: 8px;">
+          <b>Keamanan & Privasi Terjamin:</b> Kredensial diverifikasi secara real-time ke Moodle UNAIR. Data berkas dan akun Anda tersimpan di ruang kerja mandiri yang terisolasi sepenuhnya dari mahasiswa lain.
+        </div>
+        <button type="submit" id="btn-login-submit" class="btn btn-primary btn-block">Masuk ke AutoSubmit</button>
         <p id="login-error" class="error-text hidden" style="margin-top: 10px;"></p>
       </form>
     </div>
   </div>
 
-  <div id="app-container" class="app-layout">
+  <div id="app-container" class="app-layout hidden">
     <!-- Header -->
     <header class="app-header">
       <div class="header-inner">
-        <div class="header-brand">
+        <div class="header-brand" style="display: flex; align-items: center; gap: 8px;">
           <span class="system-name">Hebat_Submitter</span>
+          <span id="user-nim-pill" class="footnote mono" style="background: rgba(0,0,0,0.05); color: #1D1D1F; padding: 2px 8px; border-radius: 6px; font-size: 11px;">NIM: --</span>
         </div>
-        <!-- Header Status Indicator -->
-        <div class="header-status">
-          <span class="status-dot" id="status-dot"></span>
-          <span class="status-text" id="status-text">Memuat...</span>
+        <!-- Header Status & Ping Indicator -->
+        <div class="header-status-wrapper">
+          <div class="header-ping-pill" title="Latensi koneksi ke server Moodle">
+            <span class="ping-signal-icon" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M0 6a8 8 0 0 1 16 0 .75.75 0 0 1-1.06 1.06A6.5 6.5 0 0 0 1.06 7.06.75.75 0 0 1 0 6zm3.5 3.5a4 4 0 0 1 9 0 .75.75 0 0 1-1.06 1.06 2.5 2.5 0 0 0-6.88 0 .75.75 0 0 1-1.06-1.06zM7 13a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/>
+              </svg>
+            </span>
+            <span class="header-ping mono" id="header-ping">-- ms</span>
+          </div>
+          <div class="header-status">
+            <span class="status-dot" id="status-dot"></span>
+            <span class="status-text" id="status-text">Memuat...</span>
+          </div>
         </div>
       </div>
 
@@ -62,7 +90,7 @@
         <div class="nav-container">
           <div class="segmented-control" role="tablist">
             <button class="seg-btn active" data-tab="tab-beranda" type="button">Beranda</button>
-            <button class="seg-btn" data-tab="tab-berkas" type="button">Berkas</button>
+            <button class="seg-btn" data-tab="tab-tugas" type="button">Tugas</button>
             <button class="seg-btn" data-tab="tab-log" type="button">Log</button>
             <button class="seg-btn" data-tab="tab-pengaturan" type="button">Pengaturan</button>
           </div>
@@ -74,111 +102,143 @@
       <!-- ================= TAB 1: BERANDA ================= -->
       <section id="tab-beranda" class="tab-panel active">
         <div class="page-lead">
-          <h1 class="screen-title" id="lead-title">Memuat jadwal...</h1>
-          <p class="footnote" id="lead-subtitle">Moodle UNAIR</p>
+          <h1 class="screen-title" id="lead-title">Pengumpulan Tugas</h1>
+          <p class="footnote" id="lead-subtitle">Moodle Hebat UNAIR</p>
         </div>
 
         <!-- Timer / Countdown Card -->
-        <section aria-label="Hitung mundur waktu pembukaan" class="countdown-section">
-          <span class="countdown-badge" id="countdown-badge-text">Sisa Waktu Peluncuran</span>
+        <section aria-label="Waktu pengumpulan tugas" class="countdown-section">
+          <span class="countdown-badge" id="countdown-badge-text">Waktu Pengumpulan</span>
           <div class="countdown-display" id="countdown-timer">-- : -- : --</div>
-          <p class="footnote" id="countdown-subtext">Perkiraan waktu server, sinkronisasi otomatis.</p>
+          <p class="footnote" id="countdown-subtext">Pilih berkas dan tentukan waktu pengumpulan di bawah.</p>
         </section>
 
-        <!-- Kesiapan Sistem -->
+        <!-- Form Pengumpulan Tugas -->
         <div class="group-wrapper">
-          <h2 class="group-header">Kesiapan sistem</h2>
-          <div class="group-card">
-            <div class="list-row">
-              <span class="row-label">Berkas PDF</span>
-              <div style="display: flex; align-items: center;">
-                <span class="row-value mono" id="row-file-name">Belum ada berkas</span>
-                <span class="row-indicator neutral" id="row-file-icon">
-                  <svg class="icon"><use href="#icon-cross"></use></svg>
-                </span>
+          <h2 class="group-header">Detail Pengumpulan</h2>
+          <div class="group-card" style="padding: 16px;">
+            <!-- 1. Berkas Tugas -->
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label class="apple-label">Berkas Tugas</label>
+              <div id="quick-file-empty" style="padding: 14px; border: 1.5px dashed rgba(0,0,0,0.12); border-radius: 12px; text-align: center; background: rgba(0,0,0,0.01); cursor: pointer;">
+                <input type="file" id="quick-file-input" accept="application/pdf,.pdf" style="display: none;">
+                <span style="font-size: 13.5px; font-weight: 600; color: #0071E3;">+ Pilih atau Tarik Berkas PDF ke Sini</span>
+                <p class="footnote" style="margin-top: 2px; font-size: 11px;">Maksimal 10 MB</p>
+              </div>
+              <div id="quick-file-loaded" class="hidden" style="padding: 12px 14px; background: rgba(0,0,0,0.025); border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                  <div id="quick-file-name" class="mono" style="font-weight: 600; font-size: 13.5px; color: #1D1D1F;">nama_file.pdf</div>
+                  <div id="quick-file-size" class="footnote" style="font-size: 11px;">0 KB</div>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" id="btn-quick-change-file" class="btn btn-sm" style="background: rgba(0,0,0,0.05); color: #1D1D1F; font-size: 12px; padding: 4px 10px;">Ganti</button>
+                  <button type="button" id="btn-quick-delete-file" class="btn btn-sm" style="background: #FFE5E7; color: #D70015; font-size: 12px; padding: 4px 10px;">Hapus</button>
+                </div>
               </div>
             </div>
-            <div class="list-row">
-              <span class="row-label">Sesi Moodle</span>
-              <div style="display: flex; align-items: center;">
-                <span class="row-value strong" id="row-session-status">Siap</span>
-                <span class="row-indicator ok" id="row-session-icon">
-                  <svg class="icon"><use href="#icon-check"></use></svg>
-                </span>
+
+            <!-- 2. Target Mata Kuliah & Tugas -->
+            <div class="form-group" style="margin-bottom: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label class="apple-label" for="quick-course-select" style="margin-bottom: 0;">Mata Kuliah & Target Tugas</label>
+                <a href="#" id="link-go-to-tugas" style="font-size: 12px; color: #0071E3; font-weight: 500; text-decoration: none;">Lihat Semua Tugas →</a>
               </div>
-            </div>
-            <div class="list-row">
-              <span class="row-label">Tugas terdeteksi</span>
-              <div style="display: flex; align-items: center; max-width: 65%;">
-                <span class="row-value" id="row-assign-name">Belum dipindai</span>
-                <span class="row-indicator neutral" id="row-assign-icon">
-                  <svg class="icon"><use href="#icon-cross"></use></svg>
-                </span>
+              <div style="margin-bottom: 8px;">
+                <select id="quick-course-select" class="apple-select">
+                  <option value="">Memuat daftar mata kuliah...</option>
+                </select>
               </div>
+              <div style="margin-bottom: 8px;">
+                <select id="quick-assign-select" class="apple-select">
+                  <option value="">Pilih tugas dari daftar mata kuliah...</option>
+                </select>
+              </div>
+              <input type="text" id="quick-assign-input" class="apple-input" placeholder="Atau ketik nama/kata kunci tugas manual..." style="font-size: 13px;">
             </div>
-            <div class="list-row">
-              <span class="row-label">Draft terunggah</span>
-              <div style="display: flex; align-items: center;">
-                <span class="row-value mono" id="row-draft-item">Tidak ada</span>
-                <span class="row-indicator neutral" id="row-draft-icon">
-                  <svg class="icon"><use href="#icon-cross"></use></svg>
-                </span>
+
+            <!-- 3. Waktu Pengumpulan -->
+            <div class="form-group" style="margin-bottom: 6px;">
+              <label class="apple-label">Waktu Pengumpulan</label>
+              <div class="submode-selector" id="submode-selector">
+                <button type="button" class="submode-btn active" data-submode="custom">Pilih Tanggal & Jam</button>
+                <button type="button" class="submode-btn" data-submode="direct">Kirim Langsung</button>
+                <button type="button" class="submode-btn" data-submode="template">Template Jadwal</button>
+              </div>
+
+              <!-- Sub-panel A: Pilih Tanggal & Jam Sendiri (Default) -->
+              <div id="subpanel-custom" style="margin-top: 10px;">
+                <div class="apple-calendar-card">
+                  <div class="cal-header">
+                    <button type="button" class="cal-nav-btn cal-prev-month" aria-label="Bulan Sebelumnya">
+                      <svg class="icon"><use href="#icon-chevron-left"></use></svg>
+                    </button>
+                    <span class="cal-month-title">Bulan 2026</span>
+                    <button type="button" class="cal-nav-btn cal-next-month" aria-label="Bulan Berikutnya">
+                      <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+                    </button>
+                  </div>
+                  <div class="cal-weekdays">
+                    <span>MIN</span><span>SEN</span><span>SEL</span><span>RAB</span><span>KAM</span><span>JUM</span><span>SAB</span>
+                  </div>
+                  <div class="cal-days-grid"></div>
+                  <div class="cal-time-row">
+                    <div class="cal-time-label">Waktu Pengumpulan</div>
+                    <div class="cal-time-picker">
+                      <input type="number" min="0" max="23" value="7" class="cal-time-input cal-hour mono" aria-label="Jam">
+                      <span class="cal-time-sep">:</span>
+                      <input type="number" min="0" max="59" value="0" class="cal-time-input cal-minute mono" aria-label="Menit">
+                      <span class="cal-time-tz">WIB</span>
+                    </div>
+                  </div>
+                  <div class="cal-selected-preview mono">
+                    Pilih tanggal pada kalender
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sub-panel B: Kirim Langsung -->
+              <div id="subpanel-direct" class="hidden" style="margin-top: 10px; padding: 14px; background: rgba(0,113,227,0.05); border-radius: 12px; border: 1px solid rgba(0,113,227,0.15);">
+                <div style="font-size: 13.5px; font-weight: 600; color: #0071E3; margin-bottom: 2px;">Pengiriman Langsung</div>
+                <p class="footnote" style="margin: 0; font-size: 12px; line-height: 1.4;">
+                  Tugas akan segera dikirimkan ke Moodle saat tombol di bawah ditekan, tanpa perlu menunggu jadwal otomatisasi.
+                </p>
+              </div>
+
+              <!-- Sub-panel C: Template Jadwal -->
+              <div id="subpanel-template" class="hidden" style="margin-top: 10px;">
+                <div class="cal-presets" style="display: flex; flex-direction: column; gap: 8px;">
+                  <button type="button" class="btn-template-preset btn btn-block" data-template="so-wednesday" style="justify-content: flex-start; background: rgba(0,0,0,0.03); color: #1D1D1F; font-size: 13px; text-align: left; padding: 10px 14px;">
+                    <div>
+                      <strong>Praktikum Sistem Operasi</strong>
+                      <div class="footnote" style="font-size: 11px;">Rabu Pukul 07:00:00 WIB</div>
+                    </div>
+                  </button>
+                  <button type="button" class="btn-template-preset btn btn-block" data-template="tomorrow-morning" style="justify-content: flex-start; background: rgba(0,0,0,0.03); color: #1D1D1F; font-size: 13px; text-align: left; padding: 10px 14px;">
+                    <div>
+                      <strong>Besok Pagi</strong>
+                      <div class="footnote" style="font-size: 11px;">Pukul 07:00:00 WIB</div>
+                    </div>
+                  </button>
+                  <button type="button" class="btn-template-preset btn btn-block" data-template="tonight-deadline" style="justify-content: flex-start; background: rgba(0,0,0,0.03); color: #1D1D1F; font-size: 11px; text-align: left; padding: 10px 14px;">
+                    <div>
+                      <strong>Malam Ini (Batas Akhir)</strong>
+                      <div class="footnote" style="font-size: 11px;">Pukul 23:55:00 WIB</div>
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Tombol Aksi Utama Kontekstual -->
+        <!-- Tombol Aksi Utama -->
         <div class="action-block">
-          <button id="btn-main-action" class="btn btn-block btn-tinted-disarm" type="button">Aktifkan (ARM)</button>
-        </div>
-
-        <!-- Diagnostik & Persiapan -->
-        <div class="group-wrapper">
-          <h2 class="group-header">Diagnostik dan persiapan</h2>
-          <div class="group-card">
-            <div class="list-row interactive-row" id="action-check-row">
-              <div class="row-main">
-                <span class="row-label">Periksa koneksi</span>
-                <span class="row-meta" id="row-check-meta">Klik untuk memindai status tugas di Moodle</span>
-              </div>
-              <span class="row-indicator neutral">
-                <svg class="icon"><use href="#icon-chevron-right"></use></svg>
-              </span>
-            </div>
-            <div class="list-row interactive-row" id="action-prepare-row">
-              <div class="row-main">
-                <span class="row-label">Siapkan sekarang</span>
-                <span class="row-meta" id="row-prepare-meta">Unggah file ke draft area sebelum jam buka</span>
-              </div>
-              <span class="row-indicator neutral">
-                <svg class="icon"><use href="#icon-chevron-right"></use></svg>
-              </span>
-            </div>
-            <div class="list-row interactive-row" id="action-submit-now-row">
-              <div class="row-main">
-                <span class="row-label" style="color: #0071E3;">Kirim tugas sekarang</span>
-                <span class="row-meta" id="row-submit-now-meta">Eksekusi submit langsung ke Moodle tanpa menunggu timer</span>
-              </div>
-              <span class="row-indicator neutral">
-                <svg class="icon"><use href="#icon-chevron-right"></use></svg>
-              </span>
-            </div>
-            <div class="list-row interactive-row" id="action-simulate-row">
-              <div class="row-main">
-                <span class="row-label" style="color: #FF9F0A;">Simulasi Otomasi Nyata (2 Menit)</span>
-                <span class="row-meta" id="row-simulate-meta">Tes siklus penuh: Alarm A ➔ Alarm B ➔ Polling ➔ Submit</span>
-              </div>
-              <span class="row-indicator neutral">
-                <svg class="icon"><use href="#icon-chevron-right"></use></svg>
-              </span>
-            </div>
-          </div>
+          <button id="btn-main-action" class="btn btn-block btn-primary" type="button">Jadwalkan Tugas</button>
         </div>
 
         <!-- Hasil Pengumpulan Terakhir -->
         <div class="group-wrapper">
-          <h2 class="group-header">Hasil pengumpulan terakhir</h2>
+          <h2 class="group-header">Hasil Pengumpulan Terakhir</h2>
           <div class="group-card">
             <div class="list-row">
               <span class="row-label">Status</span>
@@ -186,7 +246,7 @@
             </div>
             <div class="list-row">
               <span class="row-label">Waktu kirim</span>
-              <span class="row-value mono" id="row-last-time">-- ms</span>
+              <span class="row-value mono" id="row-last-time">--</span>
             </div>
             <div class="list-row">
               <span class="row-label">Nama berkas</span>
@@ -196,56 +256,68 @@
         </div>
       </section>
 
-      <!-- ================= TAB 2: BERKAS ================= -->
-      <section id="tab-berkas" class="tab-panel hidden">
+      <!-- ================= TAB 2: TUGAS (BARU) ================= -->
+      <section id="tab-tugas" class="tab-panel hidden">
         <div class="page-lead">
-          <h1 class="screen-title">Pengelolaan Berkas</h1>
-          <p class="footnote">Unggah file PDF tugas yang akan dikumpulkan otomatis.</p>
+          <h1 class="screen-title">Daftar Tugas Moodle</h1>
+          <p class="footnote">Pilih mata kuliah untuk melihat tugas yang belum dikumpulkan, sudah selesai, dikunci, atau terlewat.</p>
         </div>
 
+        <!-- Pilih Mata Kuliah -->
         <div class="group-wrapper">
-          <div class="group-card" style="padding: 24px; text-align: center;">
-            <div id="dropzone" class="apple-dropzone">
-              <input type="file" id="file-input" accept="application/pdf" style="display: none;">
-              <div style="font-size: 38px; margin-bottom: 10px;">📄</div>
-              <p style="font-size: 15px; font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">Pilih atau seret berkas PDF ke sini</p>
-              <p class="footnote">Maksimal 10 MB. File akan disimpan secara aman di Cloudflare Durable Object.</p>
-            </div>
-
-            <div id="file-card-details" class="hidden" style="margin-top: 16px; padding: 16px; background: rgba(0,0,0,0.02); border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
-              <div style="text-align: left;">
-                <div id="active-file-name" class="mono" style="font-weight: 600; font-size: 14.5px;">file.pdf</div>
-                <div id="active-file-size" class="footnote">0 KB</div>
-              </div>
-              <button id="btn-delete-file" class="btn btn-sm" style="background: #FFE5E7; color: #D70015; padding: 6px 12px; font-size: 13px;">Hapus</button>
+          <h2 class="group-header">Mata Kuliah</h2>
+          <div class="group-card" style="padding: 16px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="course-dropdown" class="apple-select" style="flex: 1;">
+                <option value="">Memuat daftar mata kuliah...</option>
+              </select>
+              <button type="button" id="btn-reload-courses" class="btn btn-sm" style="padding: 8px 12px; font-size: 13px; background: rgba(0,0,0,0.05); color: #1D1D1F; white-space: nowrap;">
+                Segarkan
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- Format Penamaan Card -->
+        <!-- Filter Status Tugas -->
+        <div class="filter-pills-wrapper">
+          <button type="button" class="filter-pill active" data-filter="all">Semua</button>
+          <button type="button" class="filter-pill" data-filter="OPEN">Belum Dikumpulkan</button>
+          <button type="button" class="filter-pill" data-filter="SUBMITTED">Sudah Dikumpulkan</button>
+          <button type="button" class="filter-pill" data-filter="LOCKED">Dikunci / Akan Datang</button>
+          <button type="button" class="filter-pill" data-filter="OVERDUE">Terlewat / Ditutup</button>
+        </div>
+
+        <!-- Daftar Tugas -->
         <div class="group-wrapper">
-          <h2 class="group-header">Format Penamaan File Praktikum</h2>
-          <div class="group-card">
+          <div id="assignments-list-container" class="group-card">
             <div class="list-row">
-              <span class="row-label">Standar Penamaan</span>
-              <span class="row-value mono" style="font-size: 13px;">PrakSO_[Kelas]_Week[N]_[NIM].pdf</span>
-            </div>
-            <div class="list-row">
-              <span class="row-label">Minggu Berjalan</span>
-              <span class="row-value strong" id="file-naming-hint">PrakSO_I1_Week8_...pdf</span>
+              <span class="row-label text-subtle">Memuat daftar tugas...</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ================= TAB 3: LOG ================= -->
+
+
+      <!-- ================= TAB 4: LOG ================= -->
       <section id="tab-log" class="tab-panel hidden">
         <div class="page-lead">
           <h1 class="screen-title">Log Sistem</h1>
           <p class="footnote">Riwayat aktivitas Worker dan Moodle (seluruh rahasia disanitasi otomatis).</p>
         </div>
 
-        <div class="group-wrapper">
+        <!-- Subtab Switcher: Log Ruang Kerja vs Audit Semua Pengguna -->
+        <div id="subtab-switcher-wrapper" style="display: flex; gap: 8px; margin-bottom: 14px;">
+          <button type="button" id="btn-subtab-my-logs" class="btn btn-sm" style="flex: 1; background: #0071E3; color: #fff; font-weight: 600; padding: 7px 12px; font-size: 13px;">
+            Log Ruang Kerja Saya
+          </button>
+          <button type="button" id="btn-subtab-global-logs" class="btn btn-sm hidden" style="flex: 1; background: rgba(0,0,0,0.06); color: #1D1D1F; font-weight: 500; padding: 7px 12px; font-size: 13px;">
+            Audit Semua Pengguna (Owner)
+          </button>
+        </div>
+
+        <!-- Sub-panel 1: Local Logs -->
+        <div class="group-wrapper" id="section-my-logs">
           <div class="group-card">
             <div id="logs-container" style="max-height: 480px; overflow-y: auto;">
               <div id="logs-list">
@@ -256,49 +328,152 @@
             </div>
           </div>
         </div>
+
+        <!-- Sub-panel 2: Global Audit Logs (Owner View) -->
+        <div class="group-wrapper hidden" id="section-global-logs">
+          <div class="group-card">
+            <div style="padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,0.06); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.015);">
+              <div>
+                <span style="font-size: 13px; font-weight: 600; color: #1D1D1F;">Audit Trail Semua Pengguna</span>
+                <p class="footnote" style="margin: 0; font-size: 11px;">Mencatat setiap aksi: upload berkas, ARM, simulasi, dan kirim tugas dari semua mahasiswa.</p>
+              </div>
+              <button type="button" id="btn-refresh-global-logs" class="btn btn-sm" style="background: rgba(0,113,227,0.1); color: #0071E3; font-size: 12px; padding: 4px 10px;">
+                Segarkan
+              </button>
+            </div>
+            <div id="global-logs-container" style="max-height: 480px; overflow-y: auto;">
+              <div id="global-logs-list">
+                <div class="list-row">
+                  <span class="row-label text-subtle">Memuat audit global...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <!-- ================= TAB 4: PENGATURAN ================= -->
+      <!-- ================= TAB 5: PENGATURAN ================= -->
       <section id="tab-pengaturan" class="tab-panel hidden">
         <div class="page-lead">
-          <h1 class="screen-title">Pengaturan</h1>
-          <p class="footnote">Konfigurasi assignment target dan preferensi otomasi.</p>
+          <h1 class="screen-title">Pengaturan Akun & Server</h1>
+          <p class="footnote">Konfigurasi akun login Moodle, target server, dan bot notifikasi Telegram.</p>
         </div>
 
         <form id="config-form">
+          <!-- Grup 1: Akun Moodle (Kredensial Mahasiswa) -->
           <div class="group-wrapper">
-            <h2 class="group-header">Moodle Assignment</h2>
+            <h2 class="group-header">Akun Moodle Mahasiswa</h2>
             <div class="group-card" style="padding: 16px;">
+              <p class="footnote" style="margin-bottom: 12px;" id="creds-isolation-note">
+                <b>Akun Terautentikasi:</b> Anda telah terhubung dengan akun Moodle UNAIR Anda sendiri. Sistem akan menggunakan akun ini untuk mengunggah draft dan mengirimkan tugas secara otomatis saat jam buka.
+              </p>
               <div class="form-group" style="margin-bottom: 14px;">
-                <label class="apple-label" for="cfg-moodle-target">Target Server Moodle</label>
-                <select id="cfg-moodle-target" class="apple-input" style="background: #fff; cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <label class="apple-label" for="cfg-moodle-user" style="margin-bottom: 0;">NIM Mahasiswa</label>
+                  <span id="badge-user-source" class="footnote mono" style="font-size: 11px; color: #0071E3;">(Terverifikasi)</span>
+                </div>
+                <input type="text" id="cfg-moodle-user" class="apple-input" readonly disabled style="background: rgba(0,0,0,0.03); color: #1D1D1F; font-weight: 600;">
+              </div>
+              <div class="form-group" style="margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <label class="apple-label" for="cfg-moodle-pass" style="margin-bottom: 0;">Perbarui Password Cybercampus (Opsional)</label>
+                  <span id="badge-pass-source" class="footnote mono" style="font-size: 11px; color: #34C759;">(Password Aktif)</span>
+                </div>
+                <input type="password" id="cfg-moodle-pass" class="apple-input" placeholder="Biarkan kosong jika tidak ingin mengubah">
+              </div>
+            </div>
+          </div>
+
+          <!-- Grup 2: Target Server Moodle -->
+          <div class="group-wrapper">
+            <h2 class="group-header">Target Server Moodle</h2>
+            <div class="group-card" style="padding: 16px;">
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="apple-label" for="cfg-moodle-target">Pilihan Server</label>
+                <select id="cfg-moodle-target" class="apple-select">
                   <option value="https://hebat.elearning.unair.ac.id">Moodle Hebat UNAIR Asli (hebat.elearning.unair.ac.id)</option>
                   <option value="https://moodle-mock.mufath04.workers.dev">Sandbox Mock Moodle (moodle-mock.mufath04.workers.dev)</option>
                 </select>
-                <div style="font-size: 11.5px; color: #86868B; margin-top: 4px;">
+                <div style="font-size: 11.5px; color: #86868B; margin-top: 6px;">
                   Pilih "Sandbox Mock Moodle" untuk menguji lock, pre-upload, polling, dan submit sepuasnya tanpa risiko nilai!
-                  <a href="https://moodle-mock.mufath04.workers.dev" target="_blank" style="color: #0071E3; font-weight: 500; text-decoration: underline; margin-left: 4px;">Buka Web Portal Mock ↗</a>
+                  <a href="https://moodle-mock.mufath04.workers.dev" target="_blank" style="color: #0071E3; font-weight: 500; text-decoration: underline; margin-left: 4px;">Buka Web Portal Mock</a>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Grup 3: Notifikasi Telegram (Sangat Mudah untuk Teman) -->
+          <div class="group-wrapper">
+            <h2 class="group-header">Notifikasi Telegram (Opsional)</h2>
+            <div class="group-card" style="padding: 16px;">
+              <p class="footnote" style="margin-bottom: 12px;">
+                <b>Untuk Teman:</b> Tidak perlu repot membuat bot sendiri di BotFather! Cukup masukkan <b>Chat ID Telegram</b> Anda di bawah. Bot utama sistem akan langsung mengirim notifikasi status pengumpulan tugas ke Anda, dan salinan audit otomatis diteruskan ke pemilik worker.
+              </p>
               <div class="form-group" style="margin-bottom: 14px;">
-                <label class="apple-label" for="cfg-course-id">Course ID</label>
-                <input type="text" id="cfg-course-id" class="apple-input" required>
+                <label class="apple-label" for="cfg-telegram-chat">Chat ID Telegram Anda</label>
+                <input type="text" id="cfg-telegram-chat" class="apple-input" placeholder="Contoh: 123456789">
+                <div style="font-size: 11.5px; color: #86868B; margin-top: 4px;">
+                  Cara dapat Chat ID: Buka Telegram, cari bot gratis <b>@userinfobot</b>, lalu klik Start/kirim pesan apapun. Angka "Id" adalah Chat ID Anda.
+                </div>
               </div>
-              <div class="form-group" style="margin-bottom: 14px;">
-                <label class="apple-label" for="cfg-assign-name">Pola Nama Tugas</label>
-                <input type="text" id="cfg-assign-name" class="apple-input" required placeholder="Contoh: Pengumpulan Modul Prak Lab">
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="apple-label" for="cfg-telegram-token">Custom Bot Token (Tingkat Lanjut / Opsional)</label>
+                <input type="password" id="cfg-telegram-token" class="apple-input" placeholder="Biarkan kosong untuk memakai bot default sistem">
               </div>
-              <div class="form-group" style="margin-bottom: 14px;">
-                <label class="apple-label" for="cfg-unlock-override">Override Waktu Unlock (Opsional ISO)</label>
-                <input type="text" id="cfg-unlock-override" class="apple-input" placeholder="2026-10-21T00:00:00.000Z">
-              </div>
-              <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+            </div>
+          </div>
+
+          <!-- Grup 4: Alat Diagnostik & Pengujian (Pindahan dari Beranda) -->
+          <div class="group-wrapper">
+            <h2 class="group-header">Alat Diagnostik & Pengujian</h2>
+            <div class="group-card" style="padding: 16px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
                 <input type="checkbox" id="cfg-auto-weekly" style="width: 16px; height: 16px; accent-color: #0071E3;">
-                <label for="cfg-auto-weekly" style="font-size: 14px; font-weight: 500; color: #1D1D1F; cursor: pointer;">Jadwalkan otomatis setiap minggu (Auto-Weekly)</label>
+                <label for="cfg-auto-weekly" style="font-size: 13.5px; font-weight: 500; color: #1D1D1F; cursor: pointer;">
+                  Jadwalkan otomatis setiap minggu (Khusus Praktikum Sistem Operasi - Rabu 07:00 WIB)
+                </label>
               </div>
-              <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
                 <input type="checkbox" id="cfg-dry-run" style="width: 16px; height: 16px; accent-color: #0071E3;">
-                <label for="cfg-dry-run" style="font-size: 14px; font-weight: 500; color: #1D1D1F; cursor: pointer;">Mode Simulasi (Dry Run - Hapus centang untuk kirim nyata ke Moodle)</label>
+                <label for="cfg-dry-run" style="font-size: 13.5px; font-weight: 500; color: #1D1D1F; cursor: pointer;">
+                  Mode Uji Coba (Dry Run - Tanpa kirim nyata ke Moodle)
+                </label>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label class="apple-label" for="cfg-unlock-override">Raw Override ISO (Tingkat Lanjut)</label>
+                <input type="text" id="cfg-unlock-override" class="apple-input" placeholder="Contoh: 2026-10-16T00:00:00.000Z">
+              </div>
+
+              <div class="list-row interactive-row" id="action-check-row" style="padding: 10px 0; border-top: 1px solid rgba(0,0,0,0.06);">
+                <div class="row-main">
+                  <span class="row-label">Periksa Koneksi & Sinkronisasi Server</span>
+                  <span class="row-meta" id="row-check-meta">Pindai status Moodle dan ukur selisih jam server</span>
+                </div>
+                <span class="row-indicator neutral">
+                  <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+                </span>
+              </div>
+
+              <div class="list-row interactive-row" id="action-prepare-row" style="padding: 10px 0; border-top: 1px solid rgba(0,0,0,0.06);">
+                <div class="row-main">
+                  <span class="row-label">Siapkan Draft Sekarang (Tes Pre-Upload)</span>
+                  <span class="row-meta" id="row-prepare-meta">Tes unggah draft PDF ke Moodle sekarang</span>
+                </div>
+                <span class="row-indicator neutral">
+                  <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+                </span>
+              </div>
+
+              <div class="list-row interactive-row" id="action-simulate-row" style="padding: 10px 0; border-top: 1px solid rgba(0,0,0,0.06);">
+                <div class="row-main">
+                  <span class="row-label" style="color: #FF9F0A;">Uji Coba Pengiriman Otomatis (2 Menit)</span>
+                  <span class="row-meta" id="row-simulate-meta">Jadwalkan uji coba siklus submit tepat 120 detik dari sekarang</span>
+                </div>
+                <span class="row-indicator neutral">
+                  <svg class="icon"><use href="#icon-chevron-right"></use></svg>
+                </span>
               </div>
             </div>
           </div>
@@ -334,24 +509,51 @@
       </section>
     </main>
 
-    <!-- Navigasi Mobile Bawah -->
+    <!-- Navigasi Mobile Bawah (Apple iOS Native Tab Bar) -->
     <nav aria-label="Navigasi mobile" class="nav-mobile">
       <div class="tab-bar">
         <button class="tab-item active" data-tab="tab-beranda" type="button">
+          <span class="tab-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9.5L12 3l9 6.5V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9.5z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+          </span>
           <span>Beranda</span>
         </button>
-        <button class="tab-item" data-tab="tab-berkas" type="button">
-          <span>Berkas</span>
+        <button class="tab-item" data-tab="tab-tugas" type="button">
+          <span class="tab-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"></path>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+          </span>
+          <span>Tugas</span>
         </button>
         <button class="tab-item" data-tab="tab-log" type="button">
+          <span class="tab-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 17 10 11 4 5"></polyline>
+              <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
+          </span>
           <span>Log</span>
         </button>
         <button class="tab-item" data-tab="tab-pengaturan" type="button">
-          <span>Pengaturan</span>
+          <span class="tab-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </span>
+          <span>Setelan</span>
         </button>
       </div>
     </nav>
   </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>

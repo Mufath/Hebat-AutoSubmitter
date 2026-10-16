@@ -11,6 +11,7 @@ export interface LockStatusResult {
   isLocked: boolean;
   statusCode: number;
   finalUrl: string;
+  sessionExpired?: boolean;
 }
 
 export async function checkAssignmentLock(
@@ -22,6 +23,10 @@ export async function checkAssignmentLock(
   const res = await mfetch(jar, bud, `${baseUrl}/mod/assign/view.php?id=${cmid}`, {
     headers: { 'cache-control': 'no-cache' },
   });
+
+  if (res.url.includes('/login/')) {
+    return { isLocked: true, statusCode: res.res.status, finalUrl: res.url, sessionExpired: true };
+  }
 
   // If redirected back to course view, assignment is locked (F7)
   if (res.url.includes('/course/view.php')) {

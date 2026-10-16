@@ -14,7 +14,13 @@ import {
   parseCourseContextId,
   parseUserId,
   parseAvailableFrom,
+  parseAvailableUntil,
+  parseDueDate,
+  cleanCourseName,
+  parseEnrolledCourses,
   parseAssignments,
+  parseAssignmentsOverview,
+  mergeAssignmentsWithOverview,
   parseEditSubmissionForm,
   parseSubmissionStatus,
 } from '../src/moodle/parse';
@@ -49,13 +55,95 @@ describe('Moodle HTML Parser', () => {
     expect(parseUserId(html)).toBe('12345');
   });
 
-  it('should parse available from date string', () => {
-    const text = 'Available from 14 October 2026, 7:00 AM';
+  it('should parse available from date string including Moodle 4.5 strong tags', () => {
+    const text = 'Available from <strong>21 October 2026, 7:00 AM</strong>';
     const parsed = parseAvailableFrom(text);
     expect(parsed).not.toBeNull();
-    expect(parsed?.text).toBe(text);
+    expect(parsed?.text).toBe('Available from 21 October 2026, 7:00 AM');
     expect(parsed?.epochMs).toBeDefined();
-    expect(parsed?.epochMs).toBe(Date.parse('14 October 2026, 7:00 AM'));
+  });
+
+  it('should parse available until end of date string', () => {
+    const text = 'Available until end of <strong>15 October 2026</strong>';
+    const parsed = parseAvailableUntil(text);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.text).toBe('Available until end of 15 October 2026');
+    expect(parsed?.epochMs).toBeDefined();
+  });
+
+  it('should parse due date string correctly including Indonesian format', () => {
+    const text = 'Due date: 22 October 2026, 23:59';
+    const parsed = parseDueDate(text);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.epochMs).toBeDefined();
+
+    const indoText = 'terakhir dikumpulkan pada hari Minggu, 31 Agustus pukul 23.59';
+    const parsedIndo = parseDueDate(indoText);
+    expect(parsedIndo).not.toBeNull();
+    expect(parsedIndo?.epochMs).toBeDefined();
+  });
+
+  it('should clean UNAIR Moodle course names nicely', () => {
+    const raw = '2026Ganjil - FST25605020 - Matriks &amp; Transformasi Linier - S1 - Sistem Informasi - 2025 - I2';
+    expect(cleanCourseName(raw)).toBe('Matriks & Transformasi Linier (I2)');
+  });
+
+  it('should parse enrolled courses from dashboard HTML', () => {
+    const html = `
+      <div class="courses">
+        <a href="https://hebat.elearning.unair.ac.id/course/view.php?id=10978">Sistem Operasi (Praktikum)</a>
+        <a href="https://hebat.elearning.unair.ac.id/course/view.php?id=10852">Algoritma & Pemrograman</a>
+      </div>
+    `;
+    const courses = parseEnrolledCourses(html);
+    expect(courses).toHaveLength(2);
+    expect(courses[0].id).toBe('10978');
+    expect(courses[0].name).toBe('Sistem Operasi (Praktikum)');
+    expect(courses[1].id).toBe('10852');
+  });
+
+  it('should parse Moodle 4.5 overview table and merge accurate assignment statuses', () => {
+    const overviewHtml = `
+      <tr data-mdl-overview-cmid="108564" data-region="overview-item">
+        <td data-mdl-overview-item="name" data-mdl-overview-value="Tugas 1 - Minggu 2">
+          <a href="https://hebat.elearning.unair.ac.id/mod/assign/view.php?id=108564">Tugas 1 - Minggu 2</a>
+        </td>
+        <td data-mdl-overview-item="duedate" data-mdl-overview-value="1700000000">15 Nov 2023</td>
+        <td data-mdl-overview-item="submissionstatus" data-mdl-overview-value="Submitted for grading">Submitted for grading</td>
+      </tr>
+      <tr data-mdl-overview-cmid="169672" data-region="overview-item">
+        <td data-mdl-overview-item="name" data-mdl-overview-value="Tugas 6 - Minggu 7">
+          <a href="https://hebat.elearning.unair.ac.id/mod/assign/view.php?id=169672">Tugas 6 - Minggu 7</a>
+        </td>
+        <td data-mdl-overview-item="duedate" data-mdl-overview-value="1700000000">15 Nov 2023</td>
+        <td data-mdl-overview-item="submissionstatus" data-mdl-overview-value="No submission">No submission</td>
+      </tr>
+    `;
+    const overviewRows = parseAssignmentsOverview(overviewHtml);
+    expect(overviewRows).toHaveLength(2);
+    expect(overviewRows[0].cmid).toBe('108564');
+    expect(overviewRows[0].submissionStatus).toBe('Submitted for grading');
+
+    const baseAssignments = [
+      {
+        cmid: '108564',
+        name: 'Tugas 1 - Minggu 2',
+        url: 'https://hebat.elearning.unair.ac.id/mod/assign/view.php?id=108564',
+        isAvailable: true,
+        status: 'OPEN' as const,
+      },
+      {
+        cmid: '169672',
+        name: 'Tugas 6 - Minggu 7',
+        url: 'https://hebat.elearning.unair.ac.id/mod/assign/view.php?id=169672',
+        isAvailable: true,
+        status: 'OPEN' as const,
+      },
+    ];
+
+    const merged = mergeAssignmentsWithOverview(baseAssignments, overviewRows);
+    expect(merged[0].status).toBe('SUBMITTED');
+    expect(merged[1].status).toBe('OVERDUE');
   });
 
   it('should parse list of assignments from course HTML', () => {

@@ -19,17 +19,18 @@ export async function discoverAssignment(
   baseUrl: string,
   courseId: string,
   assignmentNamePattern: string,
-  sectionUrl?: string
+  sectionUrl?: string,
+  targetCmid?: string
 ): Promise<DiscoverResult> {
   // Fetch main course page
   const coursePage = await mfetch(jar, bud, `${baseUrl}/course/view.php?id=${courseId}`);
-  let html = await coursePage.res.text();
+  const html = await coursePage.res.text();
   const courseContextId = parseCourseContextId(html);
 
-  let allAssignments = parseAssignments(html);
+  const allAssignments = parseAssignments(html);
 
-  // If a specific sectionUrl is provided or if no assignments found on main page, fetch section page
-  if (sectionUrl || allAssignments.length === 0) {
+  // If a specific sectionUrl is provided, or if course 10978 has no assignments on main page, fetch section page
+  if (sectionUrl || (allAssignments.length === 0 && courseId === '10978')) {
     const targetSectionUrl = sectionUrl
       ? (sectionUrl.startsWith('http') ? sectionUrl : `${baseUrl}/${sectionUrl.replace(/^\//, '')}`)
       : `${baseUrl}/course/section.php?id=75330`;
@@ -46,11 +47,21 @@ export async function discoverAssignment(
     }
   }
 
-  // Match assignment by pattern
-  const normalizedPattern = assignmentNamePattern.toLowerCase().replace(/\s+/g, ' ').trim();
-  const matched = allAssignments.find(a =>
-    a.name.toLowerCase().replace(/\s+/g, ' ').includes(normalizedPattern)
-  ) || null;
+  let matched: DiscoveredAssignment | null = null;
+
+  // 1. Match by explicit cmid if provided
+  if (targetCmid) {
+    matched = allAssignments.find(a => a.cmid === String(targetCmid)) || null;
+  }
+
+  // 2. Match assignment by name pattern
+  if (!matched && assignmentNamePattern) {
+    const normalizedPattern = assignmentNamePattern.toLowerCase().replace(/\s+/g, ' ').trim();
+    matched =
+      allAssignments.find(a => a.name.toLowerCase().replace(/\s+/g, ' ') === normalizedPattern) ||
+      allAssignments.find(a => a.name.toLowerCase().replace(/\s+/g, ' ').includes(normalizedPattern)) ||
+      null;
+  }
 
   return {
     assignment: matched,

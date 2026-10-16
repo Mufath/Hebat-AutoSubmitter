@@ -85,11 +85,10 @@ export const SO_PRACTICAL_SCHEDULE: PracticalSchedule[] = [
  * If within 36 hours of an unlock or if looking forward to the next unlock.
  */
 export function getActivePracticalSchedule(nowEpochMs: number = Date.now()): PracticalSchedule {
-  // 1. Check if we are currently in an active submission window (up to 36 hours after unlock)
+  // 1. Check if we are currently in an active submission window (covers up to 6 days after unlock, including Friday classes)
   for (const item of SO_PRACTICAL_SCHEDULE) {
     const timeDiff = nowEpochMs - item.unlockEpochMs;
-    // If unlock was within last 36 hours and not yet past
-    if (timeDiff >= -3600000 && timeDiff <= 36 * 3600000) {
+    if (timeDiff >= -3600000 && timeDiff <= 6 * 24 * 3600000) {
       return item;
     }
   }

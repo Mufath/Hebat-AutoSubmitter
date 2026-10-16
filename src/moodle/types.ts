@@ -10,6 +10,17 @@ export interface DiscoveredAssignment {
   isAvailable?: boolean;
   availableFromText?: string;
   availableFromEpochMs?: number;
+  availableUntilText?: string;
+  dueDateText?: string;
+  dueDateEpochMs?: number;
+  status?: 'LOCKED' | 'OPEN' | 'OVERDUE' | 'SUBMITTED' | 'CLOSED';
+  submissionStatusText?: string;
+  submittedFileName?: string;
+}
+
+export interface MoodleCourse {
+  id: string;
+  name: string;
 }
 
 export interface SubmissionFormFields {

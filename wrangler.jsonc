@@ -28,6 +28,6 @@
     "MOODLE_BASE": "https://hebat.elearning.unair.ac.id",
     "COURSE_ID": "10978",
     "ASSIGNMENT_NAME": "Pengumpulan Modul Prak Lab",
-    "DRY_RUN": "true"
+    "DRY_RUN": "false"
   }
 }

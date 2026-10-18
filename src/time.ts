@@ -28,46 +28,82 @@ export function getNextWednesdayUnlockUtc(fromMs = Date.now()): number {
   return target.getTime();
 }
 
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
 /**
- * Samples server clock offset relative to local runtime clock using Date header.
- * Takes 5 samples and returns the median offset in ms.
- * offset = serverTime - localTime
+ * Samples server clock offset relative to local runtime clock using HTTP Second-Boundary Detection.
+ * Because HTTP Date headers truncate milliseconds (1s resolution), adding a blind +500ms causes up to
+ * ±500ms (0.5s) skew. Instead, we micro-probe across the second boundary until the Date header ticks
+ * to the next second, narrowing the true offset [maxLowerBound, minUpperBound] to within ~20-50ms.
+ * offset = serverTime - localTime (in ms)
  */
 export async function sampleServerOffset(
   jar: CookieJar,
   bud: Budget,
-  baseUrl: string
+  baseUrl: string,
+  maxProbes = 9,
+  probeIntervalMs = 110
 ): Promise<number> {
-  const offsets: number[] = [];
+  let maxLower = -Infinity;
+  let minUpper = Infinity;
+  let firstServerSecMs: number | null = null;
+  let prevMidMs: number | null = null;
+  let sampleCount = 0;
 
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < maxProbes; i++) {
+    if (bud.remaining <= 2) break;
+
     const t0 = Date.now();
     try {
-      const res = await mfetch(jar, bud, `${baseUrl}/login/index.php`, {
-        method: 'HEAD',
-        headers: { 'cache-control': 'no-cache' },
-      });
+      const res = await mfetch(
+        jar,
+        bud,
+        `${baseUrl}/login/index.php`,
+        {
+          method: 'HEAD',
+          headers: { 'cache-control': 'no-cache' },
+        },
+        0
+      );
       const t1 = Date.now();
       const dateHeader = res.res.headers.get('date');
       if (dateHeader) {
         const serverMs = Date.parse(dateHeader);
         if (!isNaN(serverMs)) {
-          // Add 500ms because HTTP Date resolution is 1s
-          const offset = serverMs + 500 - (t0 + t1) / 2;
-          offsets.push(offset);
+          const tMid = (t0 + t1) / 2;
+          // Since serverMs is floored to the second: serverMs <= trueServerTime < serverMs + 1000
+          const lower = serverMs - tMid;
+          const upper = serverMs + 1000 - tMid;
+
+          if (lower > maxLower) maxLower = lower;
+          if (upper < minUpper) minUpper = upper;
+          sampleCount++;
+
+          if (firstServerSecMs === null) {
+            firstServerSecMs = serverMs;
+          } else if (serverMs > firstServerSecMs && prevMidMs !== null) {
+            // Second boundary crossed! The server clock ticked to `serverMs` between prevMidMs and tMid.
+            if (maxLower <= minUpper) {
+              return Math.round((maxLower + minUpper) / 2);
+            }
+            return Math.round(serverMs - (prevMidMs + tMid) / 2);
+          }
+
+          prevMidMs = tMid;
         }
       }
     } catch {
       // Ignore single sample network failure
     }
+
+    if (i < maxProbes - 1 && probeIntervalMs > 0) {
+      await sleep(probeIntervalMs);
+    }
   }
 
-  if (offsets.length === 0) return 0;
-  offsets.sort((a, b) => a - b);
-  return offsets[Math.floor(offsets.length / 2)];
+  if (sampleCount === 0) return 0;
+  return Math.round((maxLower + minUpper) / 2);
 }
-
-const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 /**
  * Non-busy-waiting sleep until target server time is reached.

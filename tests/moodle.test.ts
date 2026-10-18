@@ -282,3 +282,127 @@ describe('SO Practical Schedule Mapping', () => {
   });
 });
 
+import { vi } from 'vitest';
+import { sampleServerOffset } from '../src/time';
+import { checkAssignmentLock, submitAssignment } from '../src/moodle/submit';
+
+describe('Clock Sync & Pure Submit Timing', () => {
+  it('should detect HTTP Date second boundary without ±500ms midpoint skew', async () => {
+    // True server offset is +180ms, and local clock starts at xx:xx:00.780
+    // Probe 0: local=1000780 -> server=1000960 -> Date header=1000000 (1s floored)
+    // Probe 1: local=1000890 -> server=1001070 -> Date header=1001000 (ticked over!)
+    let call = 0;
+    const baseSec = 1792324800000; // exact second boundary
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
+      // Each probe calls Date.now() 4 times (t0 in sampleServerOffset, t0 in mfetch, elapsedMs in mfetch, t1 in sampleServerOffset)
+      const probeIdx = Math.floor(call / 4);
+      const stepInProbe = call % 4;
+      call++;
+      const startMs = baseSec + 780 + probeIdx * 110;
+      return stepInProbe === 0 || stepInProbe === 1 ? startMs : startMs + 10;
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      const probeIdx = Math.floor((call - 1) / 4);
+      const localMid = baseSec + 785 + probeIdx * 110;
+      const trueServerTime = localMid + 180; // true offset = +180ms
+      const flooredServerSec = Math.floor(trueServerTime / 1000) * 1000;
+      return new Response(null, {
+        status: 200,
+        headers: { date: new Date(flooredServerSec).toUTCString() },
+      });
+    });
+
+    try {
+      const jar = new CookieJar();
+      const bud = new Budget(48);
+      const offset = await sampleServerOffset(jar, bud, 'https://hebat.elearning.unair.ac.id', 9, 0);
+
+      // Transition occurred between localMid=785 (serverMs=0) and localMid=895 (serverMs=1000)
+      // Midpoint estimate = 1000 - (785 + 895)/2 = +160ms (within 20ms of true +180ms, and only used 2 subrequests!)
+      expect(Math.abs(offset - 180)).toBeLessThanOrEqual(55);
+      expect(48 - bud.remaining).toBe(2);
+    } finally {
+      nowSpy.mockRestore();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('should check assignment lock in 1 subrequest when locked and extract formFields directly when unlocked', async () => {
+    const formHtml = readFixture('editsubmission.html');
+    let isLocked = true;
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      if (isLocked) {
+        return new Response(null, {
+          status: 303,
+          headers: { location: 'https://hebat.elearning.unair.ac.id/course/view.php?id=10978' },
+        });
+      }
+      return new Response(formHtml, { status: 200 });
+    });
+
+    try {
+      const jar = new CookieJar();
+      const bud = new Budget(48);
+
+      // 1. Locked poll uses only 1 subrequest (does not download course/view.php)
+      const lockedRes = await checkAssignmentLock(jar, bud, 'https://hebat.elearning.unair.ac.id', '167430');
+      expect(lockedRes.isLocked).toBe(true);
+      expect(48 - bud.remaining).toBe(1);
+
+      // 2. Unlocked poll extracts formFields immediately in 1 subrequest
+      isLocked = false;
+      const unlockedRes = await checkAssignmentLock(jar, bud, 'https://hebat.elearning.unair.ac.id', '167430');
+      expect(unlockedRes.isLocked).toBe(false);
+      expect(unlockedRes.formFields).not.toBeNull();
+      expect(unlockedRes.formFields?.sesskey).toBe('testSesskey987654321');
+      expect(48 - bud.remaining).toBe(2);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('should measure pure POST submission time (tPostMs) separately from verification GET (tVerifyMs)', async () => {
+    const submittedHtml = readFixture('assign_view_submitted.html');
+    const formFields = parseEditSubmissionForm(readFixture('editsubmission.html'))!;
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      if (init?.method === 'POST') {
+        await new Promise(r => setTimeout(r, 35));
+        return new Response(null, {
+          status: 303,
+          headers: { location: 'https://hebat.elearning.unair.ac.id/mod/assign/view.php?id=167430' },
+        });
+      }
+      await new Promise(r => setTimeout(r, 65));
+      return new Response(submittedHtml, { status: 200 });
+    });
+
+    try {
+      const jar = new CookieJar();
+      const bud = new Budget(48);
+      const res = await submitAssignment(
+        jar,
+        bud,
+        'https://hebat.elearning.unair.ac.id',
+        '167430',
+        formFields,
+        505205942,
+        false
+      );
+
+      expect(res.ok).toBe(true);
+      // Only 2 subrequests used (1 POST + 1 GET verification), NOT 3!
+      expect(48 - bud.remaining).toBe(2);
+      // tPostMs only includes the ~35ms POST, not the ~65ms verification GET
+      expect(res.tPostMs).toBeGreaterThanOrEqual(25);
+      expect(res.tPostMs).toBeLessThan(80);
+      expect(res.tVerifyMs).toBeGreaterThanOrEqual(50);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+

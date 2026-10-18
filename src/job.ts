@@ -62,6 +62,7 @@ export interface StoredFileMeta {
 export interface LastResult {
   status: 'SUCCESS' | 'FAILED' | 'DRY_RUN';
   tSubmitMs?: number;
+  tTotalPipelineMs?: number;
   note?: string;
   timestamp: number;
 }
@@ -347,6 +348,7 @@ export class SubmitJob extends DurableObject<Env> {
       assignment: assignment || null,
       nextUnlockAt: nextUnlockAt || null,
       serverOffsetMs,
+      workerTimeMs: Date.now(),
       lastResult: lastResult || null,
       alarmScheduledAt: alarmTime || null,
       dryRun: config.dryRun !== undefined ? config.dryRun : this.env.DRY_RUN === 'true',
@@ -889,6 +891,7 @@ export class SubmitJob extends DurableObject<Env> {
     }
 
     // 4. Fetch Form & Submit
+    const tPipeline0 = Date.now();
     const formFields = await fetchSubmissionForm(jar, bud, baseUrl, assignment.cmid);
     if (!formFields) {
       await this.setPhase('FAILED');
@@ -907,14 +910,16 @@ export class SubmitJob extends DurableObject<Env> {
       uploadRes.itemid,
       dryRun
     );
-    const tSubmitElapsed = Date.now() - tSubmitStart;
+    const tSubmitElapsed = dryRun ? Math.max(1, Date.now() - tSubmitStart) : submitRes.tPostMs;
+    const tTotalPipelineMs = Math.max(tSubmitElapsed, Date.now() - tPipeline0);
 
     const lastResult: LastResult = {
       status: dryRun ? 'DRY_RUN' : submitRes.ok ? 'SUCCESS' : 'FAILED',
       tSubmitMs: tSubmitElapsed,
+      tTotalPipelineMs,
       note: dryRun
         ? 'Dry run submission completed. No mutations applied.'
-        : `Submitted for grading. Verification: ${submitRes.status.statusText}`,
+        : `Submitted for grading. Verification: ${submitRes.status.statusText} (Siklus total: ${tTotalPipelineMs} ms)`,
       timestamp: Date.now(),
     };
 
@@ -925,17 +930,19 @@ export class SubmitJob extends DurableObject<Env> {
     await this.recordAudit('SUBMIT_MANUAL', submitRes.ok || dryRun ? 'SUCCESS' : 'FAILED', {
       assignment: assignment.name,
       elapsedMs: tSubmitElapsed,
+      totalPipelineMs: tTotalPipelineMs,
       statusText: submitRes.status.statusText,
     });
 
     await this.notifyDual(
-      `✅ <b>Hebat_Submitter ${dryRun ? '[DRY RUN] ' : ''}Sukses (Langsung)!</b>\nTugas: ${assignment.name}\nDurasi kirim: ${tSubmitElapsed} ms\nStatus: ${submitRes.status.statusText}`
+      `✅ <b>Hebat_Submitter ${dryRun ? '[DRY RUN] ' : ''}Sukses (Langsung)!</b>\nTugas: ${assignment.name}\nDurasi kirim (POST): ${tSubmitElapsed} ms\nTotal siklus: ${tTotalPipelineMs} ms\nStatus: ${submitRes.status.statusText}`
     );
 
     return {
       ok: submitRes.ok || dryRun,
       dryRun,
       elapsedMs: tSubmitElapsed,
+      totalPipelineMs: tTotalPipelineMs,
       statusText: submitRes.status.statusText,
       assignmentName: assignment.name,
     };
@@ -1062,7 +1069,7 @@ export class SubmitJob extends DurableObject<Env> {
     const baseUrl = config.moodleBase || this.env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
     const assignment = await this.ctx.storage.get<DiscoveredAssignment>('assignment');
     const draft = await this.ctx.storage.get<{ itemId: number; createdAt: number }>('draft');
-    const offset = (await this.ctx.storage.get<number>('serverOffsetMs')) || 0;
+    let offset = (await this.ctx.storage.get<number>('serverOffsetMs')) || 0;
     const nextUnlockAt = (await this.ctx.storage.get<number>('nextUnlockAt')) || getNextWednesdayUnlockUtc();
     const dryRun = config.dryRun !== undefined ? config.dryRun : (this.env.DRY_RUN === 'true');
     const creds = await this.getEffectiveCredentials(config);
@@ -1081,12 +1088,20 @@ export class SubmitJob extends DurableObject<Env> {
     const jar = CookieJar.load(savedCookies);
     const bud = new Budget(48);
 
-    // Sleep until T - 400ms before starting polling
-    const targetPollStartMs = nextUnlockAt - 400;
+    // Re-calibrate server clock offset right at T-30s using Second-Boundary Detection if we have >4s before unlock
+    if (nextUnlockAt - (Date.now() + offset) > 4000 && bud.remaining > 35) {
+      offset = await sampleServerOffset(jar, bud, baseUrl);
+      await this.ctx.storage.put('serverOffsetMs', offset);
+      await this.appendLog('INFO', `Alarm B re-calibrated Moodle server clock offset: ${offset} ms`);
+    }
+
+    // Sleep until T - 350ms before starting polling
+    const targetPollStartMs = nextUnlockAt - 350;
     await sleepUntil(targetPollStartMs, offset);
 
     await this.setPhase('POLLING');
     let unlocked = false;
+    let unlockedFormFields = null;
     const pollStart = Date.now();
     const maxPollDurationMs = 120 * 1000; // max 120 seconds
 
@@ -1113,6 +1128,7 @@ export class SubmitJob extends DurableObject<Env> {
 
       if (!lockRes.isLocked) {
         unlocked = true;
+        unlockedFormFields = lockRes.formFields || null;
         break;
       }
 
@@ -1130,16 +1146,18 @@ export class SubmitJob extends DurableObject<Env> {
       return;
     }
 
-    // Step: Form Submit with retry
+    // Step: Form Submit (reuses formFields if already parsed during unlock poll, otherwise fetches with retry)
     await this.setPhase('SUBMITTING');
-    const tSubmit0 = Date.now();
+    const tPipeline0 = Date.now();
 
-    let formFields = null;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      formFields = await fetchSubmissionForm(jar, bud, baseUrl, assignment.cmid);
-      if (formFields) break;
-      await this.appendLog('WARN', `Fetch form attempt ${attempt} returned null (possible 502/spike), retrying in 400ms...`);
-      await new Promise(r => setTimeout(r, 400));
+    let formFields = unlockedFormFields;
+    if (!formFields) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        formFields = await fetchSubmissionForm(jar, bud, baseUrl, assignment.cmid);
+        if (formFields) break;
+        await this.appendLog('WARN', `Fetch form attempt ${attempt} returned null (possible 502/spike), retrying in 400ms...`);
+        await new Promise(r => setTimeout(r, 400));
+      }
     }
 
     if (!formFields) {
@@ -1150,6 +1168,7 @@ export class SubmitJob extends DurableObject<Env> {
       return;
     }
 
+    const tSubmit0 = Date.now();
     const submitRes = await submitAssignment(
       jar,
       bud,
@@ -1160,13 +1179,16 @@ export class SubmitJob extends DurableObject<Env> {
       dryRun
     );
 
-    const tSubmitElapsed = Date.now() - tSubmit0;
+    const tSubmitElapsed = dryRun ? Math.max(1, Date.now() - tSubmit0) : submitRes.tPostMs;
+    const tTotalPipelineMs = Math.max(tSubmitElapsed, Date.now() - tPipeline0);
+
     const lastResult: LastResult = {
       status: dryRun ? 'DRY_RUN' : submitRes.ok ? 'SUCCESS' : 'FAILED',
       tSubmitMs: tSubmitElapsed,
+      tTotalPipelineMs,
       note: dryRun
         ? 'Dry run submission completed. No mutations applied.'
-        : `Submitted for grading. Verification: ${submitRes.status.statusText}`,
+        : `Submitted for grading. Verification: ${submitRes.status.statusText} (Siklus total: ${tTotalPipelineMs} ms)`,
       timestamp: Date.now(),
     };
 
@@ -1176,12 +1198,13 @@ export class SubmitJob extends DurableObject<Env> {
     await this.recordAudit('SUBMIT', dryRun ? 'DRY_RUN' : submitRes.ok ? 'SUCCESS' : 'FAILED', {
       assignment: assignment.name,
       elapsedMs: tSubmitElapsed,
+      totalPipelineMs: tTotalPipelineMs,
       statusText: submitRes.status.statusText,
     });
 
     // Notify Telegram (Dual dispatch)
     await this.notifyDual(
-      `✅ <b>Hebat_Submitter ${dryRun ? '[DRY RUN] ' : ''}Sukses!</b>\nTugas: ${assignment.name}\nDurasi submit: ${tSubmitElapsed} ms\nStatus: ${submitRes.status.statusText}`
+      `✅ <b>Hebat_Submitter ${dryRun ? '[DRY RUN] ' : ''}Sukses!</b>\nTugas: ${assignment.name}\nDurasi kirim (POST): ${tSubmitElapsed} ms\nTotal siklus: ${tTotalPipelineMs} ms\nStatus: ${submitRes.status.statusText}`
     );
 
     // Auto-weekly rescheduling (only if autoWeekly and not custom schedule)

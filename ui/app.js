@@ -404,7 +404,7 @@ document.querySelectorAll('[data-tab]').forEach(btn => {
 // Countdown Timer
 // ----------------------------------------------------------------------------
 
-function updateCountdown(targetMs, serverOffsetMs = 0) {
+function updateCountdown(targetMs, totalClockOffsetMs = 0) {
   if (countdownInterval) clearInterval(countdownInterval);
 
   if (!targetMs) {
@@ -423,8 +423,12 @@ function updateCountdown(targetMs, serverOffsetMs = 0) {
   });
   leadTitle.textContent = `Terjadwal untuk ${dateFormatted} WIB`;
 
+  // Anchor monotonic clock so local clock adjustments or tab throttling do not skew the countdown
+  const anchorPerfMs = performance.now();
+  const anchorServerMs = Date.now() + totalClockOffsetMs;
+
   const tick = () => {
-    const nowServer = Date.now() + serverOffsetMs;
+    const nowServer = anchorServerMs + (performance.now() - anchorPerfMs);
     const diff = targetMs - nowServer;
 
     if (diff <= 0) {
@@ -442,7 +446,7 @@ function updateCountdown(targetMs, serverOffsetMs = 0) {
   };
 
   tick();
-  countdownInterval = setInterval(tick, 1000);
+  countdownInterval = setInterval(tick, 250);
 }
 
 // ----------------------------------------------------------------------------
@@ -456,7 +460,9 @@ function setRowIcon(element, isOk) {
 
 async function refreshStatus() {
   try {
+    const tReq0 = Date.now();
     const status = await apiRequest('/api/status');
+    const tReq1 = Date.now();
     appState = status;
     showApp();
 
@@ -529,7 +535,13 @@ async function refreshStatus() {
     if (status.lastResult) {
       rowLastStatus.textContent = status.lastResult.status === 'SUCCESS' ? 'Berhasil Dikumpulkan' : status.lastResult.status;
       rowLastStatus.style.color = status.lastResult.status === 'FAILED' ? '#D70015' : '#34C759';
-      rowLastTime.textContent = status.lastResult.tSubmitMs ? `${status.lastResult.tSubmitMs} ms` : '-';
+      if (status.lastResult.tSubmitMs) {
+        rowLastTime.textContent = status.lastResult.tTotalPipelineMs
+          ? `${status.lastResult.tSubmitMs} ms (Siklus: ${status.lastResult.tTotalPipelineMs} ms)`
+          : `${status.lastResult.tSubmitMs} ms`;
+      } else {
+        rowLastTime.textContent = '-';
+      }
       rowLastFile.textContent = status.file ? status.file.name : '-';
     }
 
@@ -626,8 +638,15 @@ async function refreshStatus() {
       }
     }
 
+    // Calibrate browser clock against Cloudflare Worker edge clock + Moodle server offset
+    const clientToWorkerOffsetMs =
+      typeof status.workerTimeMs === 'number'
+        ? status.workerTimeMs - (tReq0 + tReq1) / 2
+        : 0;
+    const totalClockOffsetMs = clientToWorkerOffsetMs + (status.serverOffsetMs || 0);
+
     // Countdown
-    updateCountdown(status.nextUnlockAt, status.serverOffsetMs);
+    updateCountdown(status.nextUnlockAt, totalClockOffsetMs);
   } catch (err) {
     // Handled by apiRequest
   }
@@ -716,7 +735,8 @@ async function submitDirectJob() {
   try {
     const res = await apiRequest('/api/submit-now', 'POST');
     if (res.ok) {
-      showToast(`Pengumpulan berhasil! (${res.elapsedMs || 0} ms)`);
+      const cycleNote = res.totalPipelineMs ? `, Siklus: ${res.totalPipelineMs} ms` : '';
+      showToast(`Pengumpulan berhasil! (POST: ${res.elapsedMs || 0} ms${cycleNote})`);
     } else {
       showToast(`Gagal: ${res.error || 'Terjadi kesalahan'}`);
     }
@@ -734,8 +754,9 @@ if (actionCheckRow) {
     try {
       const res = await apiRequest('/api/check', 'POST');
       if (res.ok) {
-        rowCheckMeta.textContent = `Terkoneksi (Latensi: ${res.serverOffsetMs} ms)`;
-        showToast(`Terkoneksi ke Moodle! Latensi server: ${res.serverOffsetMs} ms`);
+        const skewSign = (res.serverOffsetMs || 0) >= 0 ? '+' : '';
+        rowCheckMeta.textContent = `Terkoneksi (Selisih Jam Server: ${skewSign}${res.serverOffsetMs} ms)`;
+        showToast(`Terkoneksi ke Moodle! Selisih jam server: ${skewSign}${res.serverOffsetMs} ms`);
       } else {
         rowCheckMeta.textContent = `Gagal: ${res.error}`;
         showToast(`Pindai Gagal: ${res.error}`);
@@ -1799,7 +1820,10 @@ async function refreshGlobalLogs() {
         const detailsObj = (typeof a.details === 'object' && a.details !== null) ? a.details : {};
         const detailsArr = [];
         const elapsed = a.elapsedMs !== undefined ? a.elapsedMs : detailsObj.elapsedMs;
-        if (elapsed !== undefined && elapsed !== null) detailsArr.push(`${elapsed} ms`);
+        const totalPipeline = detailsObj.totalPipelineMs;
+        if (elapsed !== undefined && elapsed !== null) {
+          detailsArr.push(totalPipeline ? `POST: ${elapsed} ms (Siklus: ${totalPipeline} ms)` : `POST: ${elapsed} ms`);
+        }
         const file = a.fileName || detailsObj.fileName;
         if (file) detailsArr.push(`Berkas: ${file}`);
         const assign = a.assignmentName || detailsObj.assignment;

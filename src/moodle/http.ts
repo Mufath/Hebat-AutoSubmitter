@@ -97,7 +97,7 @@ export async function mfetch(
     ...((init.headers as Record<string, string>) || {}),
   };
 
-  const t0 = performance.now();
+  const t0 = Date.now();
   for (let hop = 0; hop <= maxHops; hop++) {
     bud.take(1);
 
@@ -121,6 +121,10 @@ export async function mfetch(
     const loc = res.headers.get('location');
     if (res.status >= 300 && res.status < 400 && loc) {
       targetUrl = new URL(loc, targetUrl).toString();
+      if (maxHops === 0) {
+        const elapsedMs = Math.max(1, Date.now() - t0);
+        return { res, url: targetUrl, hops: hop, elapsedMs };
+      }
       method = 'GET';
       body = undefined;
       delete headers['content-type'];
@@ -128,7 +132,7 @@ export async function mfetch(
       continue;
     }
 
-    const elapsedMs = Math.round(performance.now() - t0);
+    const elapsedMs = Math.max(1, Date.now() - t0);
     return { res, url: targetUrl, hops: hop, elapsedMs };
   }
 

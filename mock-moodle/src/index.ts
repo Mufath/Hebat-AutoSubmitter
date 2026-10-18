@@ -167,7 +167,11 @@ export class MockMoodleDO extends DurableObject<Env> {
       return makeRes(renderMockMoodleHtml(url.origin), 200, { 'Content-Type': 'text/html; charset=utf-8' });
     }
 
-    // Login Form GET
+    // Login Form HEAD / GET
+    if (url.pathname === '/login/index.php' && req.method === 'HEAD') {
+      return makeRes(null, 200, { 'X-Note': 'Clock Sync HEAD Probe' });
+    }
+
     if (url.pathname === '/login/index.php' && req.method === 'GET') {
       const html = `
         <!DOCTYPE html>
@@ -376,7 +380,7 @@ export class MockMoodleDO extends DurableObject<Env> {
 
         if (action === 'savesubmission') {
           const draft = this.drafts.find(d => d.itemId === draftItemId) || this.drafts[this.drafts.length - 1];
-          const submitTime = Date.now();
+          const submitTime = now;
           const latencyMs = submitTime - this.unlockTimestampMs;
 
           const record: SubmissionRecord = {
@@ -392,18 +396,9 @@ export class MockMoodleDO extends DurableObject<Env> {
           this.submissions.push(record);
           await this.persist();
 
-          const htmlSuccess = `
-            <!DOCTYPE html>
-            <html>
-            <body>
-              <div class="submissionstatussubmitted">Submitted for grading</div>
-              <div class="feedback">Submission saved.</div>
-            </body>
-            </html>
-          `;
-
-          return makeRes(htmlSuccess, 200, {
-            'Content-Type': 'text/html; charset=utf-8',
+          // Real Moodle responds with 303 redirect to /mod/assign/view.php?id=cmid
+          return makeRes(null, 303, {
+            'Location': `${url.origin}/mod/assign/view.php?id=101761`,
             'X-Note': `[SUBMISSION SUCCESS] Masuk +${latencyMs}ms dari jam buka!`,
           });
         }
@@ -452,6 +447,12 @@ export class MockMoodleDO extends DurableObject<Env> {
           });
         }
 
+        const latestSubmission = this.submissions[this.submissions.length - 1];
+        const isSubmitted = Boolean(latestSubmission);
+        const statusDiv = isSubmitted
+          ? `<div class="submissionstatussubmitted">Submitted for grading</div><div class="fileuploadsubmission"><a href="/draftfile.php/${latestSubmission.fileName}">${latestSubmission.fileName}</a></div>`
+          : `<div class="submissionstatus">Draft (not submitted)</div>`;
+
         // Default view (unlocked, not editing)
         const viewHtml = `
           <!DOCTYPE html>
@@ -461,14 +462,16 @@ export class MockMoodleDO extends DurableObject<Env> {
           </head>
           <body>
             <h2>Pengumpulan Modul Prak Lab 8 NDG Linux Essential</h2>
-            <div class="submissionstatus">Draft (not submitted)</div>
+            ${statusDiv}
             <a href="/mod/assign/view.php?id=101761&action=editsubmission">Add submission</a>
           </body>
           </html>
         `;
         return makeRes(viewHtml, 200, {
           'Content-Type': 'text/html; charset=utf-8',
-          'X-Note': '[UNLOCKED] Halaman tugas terbuka (Link Add submission aktif)',
+          'X-Note': isSubmitted
+            ? '[VERIFIED] Halaman status Submitted for grading ditampilkan'
+            : '[UNLOCKED] Halaman tugas terbuka (Link Add submission aktif)',
         });
       }
     }

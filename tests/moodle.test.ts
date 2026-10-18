@@ -283,8 +283,8 @@ describe('SO Practical Schedule Mapping', () => {
 });
 
 import { vi } from 'vitest';
-import { sampleServerOffset } from '../src/time';
-import { checkAssignmentLock, submitAssignment } from '../src/moodle/submit';
+import { sampleServerOffset, warmUpConnection } from '../src/time';
+import { checkAssignmentLock, submitAssignment, buildStaticSubmissionPrefix } from '../src/moodle/submit';
 
 describe('Clock Sync & Pure Submit Timing', () => {
   it('should detect HTTP Date second boundary without ±500ms midpoint skew', async () => {
@@ -366,9 +366,12 @@ describe('Clock Sync & Pure Submit Timing', () => {
   it('should measure pure POST submission time (tPostMs) separately from verification GET (tVerifyMs)', async () => {
     const submittedHtml = readFixture('assign_view_submitted.html');
     const formFields = parseEditSubmissionForm(readFixture('editsubmission.html'))!;
+    const preBuiltPrefix = buildStaticSubmissionPrefix('167430', 505205942);
+    let capturedBody = '';
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
       if (init?.method === 'POST') {
+        capturedBody = String(init.body || '');
         await new Promise(r => setTimeout(r, 35));
         return new Response(null, {
           status: 303,
@@ -389,10 +392,14 @@ describe('Clock Sync & Pure Submit Timing', () => {
         '167430',
         formFields,
         505205942,
-        false
+        false,
+        preBuiltPrefix
       );
 
       expect(res.ok).toBe(true);
+      expect(capturedBody).toContain('id=167430&action=savesubmission');
+      expect(capturedBody).toContain('files_filemanager=505205942');
+      expect(capturedBody).toContain('sesskey=testSesskey987654321');
       // Only 2 subrequests used (1 POST + 1 GET verification), NOT 3!
       expect(48 - bud.remaining).toBe(2);
       // tPostMs only includes the ~35ms POST, not the ~65ms verification GET
@@ -403,6 +410,24 @@ describe('Clock Sync & Pure Submit Timing', () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it('should warm up TCP/TLS connection in 1 subrequest and return measured RTT', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      await new Promise(r => setTimeout(r, 30));
+      return new Response(null, { status: 200 });
+    });
+
+    try {
+      const jar = new CookieJar();
+      const bud = new Budget(48);
+      const rtt = await warmUpConnection(jar, bud, 'https://hebat.elearning.unair.ac.id');
+      expect(48 - bud.remaining).toBe(1);
+      expect(rtt).toBeGreaterThanOrEqual(20);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });
+
 
 

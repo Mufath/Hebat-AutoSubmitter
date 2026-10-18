@@ -117,3 +117,34 @@ export async function sleepUntil(targetServerMs: number, serverOffsetMs: number)
     await sleep(Math.min(remaining, 1000));
   }
 }
+
+/**
+ * Warms up the TCP + TLS connection to Moodle just before target unlock (e.g. T - 1.5s)
+ * so the first unlock poll does not pay TCP/TLS handshake overhead (~80-150ms),
+ * and returns the measured Round-Trip Time (RTT) in ms for Pre-Arrival Timing (T - RTT/2).
+ */
+export async function warmUpConnection(
+  jar: CookieJar,
+  bud: Budget,
+  baseUrl: string
+): Promise<number> {
+  if (bud.remaining <= 4) return 80;
+  const t0 = Date.now();
+  try {
+    const res = await mfetch(
+      jar,
+      bud,
+      `${baseUrl}/login/index.php`,
+      {
+        method: 'HEAD',
+        headers: { 'cache-control': 'no-cache', connection: 'keep-alive' },
+      },
+      0
+    );
+    const rttMs = Math.max(10, res.elapsedMs || (Date.now() - t0));
+    return Math.min(400, rttMs);
+  } catch {
+    return 80;
+  }
+}
+

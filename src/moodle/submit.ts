@@ -82,6 +82,21 @@ export interface SubmitResult {
   error?: string;
 }
 
+/**
+ * Pre-builds the static URL-encoded form payload prefix before 07:00:00 unlock
+ * so that at unlock time only dynamic tokens (lastmodified, userid, sesskey) are appended.
+ */
+export function buildStaticSubmissionPrefix(cmid: string, draftItemId: number): string {
+  const p = new URLSearchParams();
+  p.set('id', cmid);
+  p.set('action', 'savesubmission');
+  p.set('_qf__mod_assign_submission_form', '1');
+  p.set('mform_isexpanded_id_submissionheader', '1');
+  p.set('files_filemanager', String(draftItemId));
+  p.set('submitbutton', 'Save changes');
+  return p.toString();
+}
+
 export async function submitAssignment(
   jar: CookieJar,
   bud: Budget,
@@ -89,7 +104,8 @@ export async function submitAssignment(
   cmid: string,
   formFields: SubmissionFormFields,
   draftItemId: number,
-  dryRun = true
+  dryRun = true,
+  preBuiltPrefix?: string
 ): Promise<SubmitResult> {
   if (dryRun) {
     return {
@@ -106,19 +122,29 @@ export async function submitAssignment(
     };
   }
 
-  const body = new URLSearchParams();
-  body.set('lastmodified', formFields.lastmodified);
-  body.set('id', cmid);
-  body.set('userid', formFields.userid);
-  body.set('action', 'savesubmission');
-  body.set('sesskey', formFields.sesskey);
-  body.set('_qf__mod_assign_submission_form', '1');
-  body.set('mform_isexpanded_id_submissionheader', '1');
-  body.set('files_filemanager', String(draftItemId));
-  body.set('submitbutton', 'Save changes');
+  let bodyStr: string;
+  if (preBuiltPrefix && Object.keys(formFields.extraFields).length === 0) {
+    bodyStr =
+      `${preBuiltPrefix}` +
+      `&lastmodified=${encodeURIComponent(formFields.lastmodified)}` +
+      `&userid=${encodeURIComponent(formFields.userid)}` +
+      `&sesskey=${encodeURIComponent(formFields.sesskey)}`;
+  } else {
+    const body = new URLSearchParams(preBuiltPrefix || '');
+    body.set('lastmodified', formFields.lastmodified);
+    body.set('id', cmid);
+    body.set('userid', formFields.userid);
+    body.set('action', 'savesubmission');
+    body.set('sesskey', formFields.sesskey);
+    body.set('_qf__mod_assign_submission_form', '1');
+    body.set('mform_isexpanded_id_submissionheader', '1');
+    body.set('files_filemanager', String(draftItemId));
+    body.set('submitbutton', 'Save changes');
 
-  for (const [k, v] of Object.entries(formFields.extraFields)) {
-    body.set(k, v);
+    for (const [k, v] of Object.entries(formFields.extraFields)) {
+      body.set(k, v);
+    }
+    bodyStr = body.toString();
   }
 
   // 1. POST savesubmission (maxHops = 0 so we measure ONLY the actual POST mutation without double-fetching view.php)
@@ -130,7 +156,7 @@ export async function submitAssignment(
     {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
+      body: bodyStr,
     },
     0
   );

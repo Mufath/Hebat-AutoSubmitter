@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
-  <title>Hebat_Submitter</title>
+  <title>SubSecond</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css"/>
 </head>
@@ -35,26 +35,26 @@
     </symbol>
   </svg>
 
-  <!-- Login Modal (Active by default until authenticated with Moodle UNAIR) -->
+  <!-- Login Modal (Active by default until authenticated with Hebat Unair) -->
   <div id="login-modal" class="modal-overlay">
     <div class="modal-box">
       <div class="header-brand" style="margin-bottom: 8px;">
-        <span class="system-name">Hebat_Submitter</span>
+        <span class="system-name">SubSecond</span>
       </div>
-      <p class="footnote" style="margin-bottom: 16px;">Masuk dengan akun Cybercampus / Moodle UNAIR Anda.</p>
+      <p class="footnote" style="margin-bottom: 16px;">Masuk dengan akun Cybercampus / Hebat Unair Anda.</p>
       <form id="login-form">
         <div class="form-group" style="margin-bottom: 12px; text-align: left;">
           <label class="apple-label" for="login-nim" style="margin-bottom: 4px;">NIM Mahasiswa</label>
           <input type="text" id="login-nim" class="apple-input" placeholder="Contoh: 082111633001" required autocomplete="username">
         </div>
         <div class="form-group" style="margin-bottom: 14px; text-align: left;">
-          <label class="apple-label" for="login-moodle-pass" style="margin-bottom: 4px;">Password Cybercampus / Moodle</label>
+          <label class="apple-label" for="login-moodle-pass" style="margin-bottom: 4px;">Password Cybercampus / Hebat Unair</label>
           <input type="password" id="login-moodle-pass" class="apple-input" placeholder="Password Cybercampus Anda..." required autocomplete="current-password">
         </div>
         <div style="font-size: 11.5px; color: #86868B; text-align: left; line-height: 1.4; margin-bottom: 14px; background: rgba(0,0,0,0.03); padding: 8px 10px; border-radius: 8px;">
-          <b>Keamanan & Privasi Terjamin:</b> Kredensial diverifikasi secara real-time ke Moodle UNAIR. Data berkas dan akun Anda tersimpan di ruang kerja mandiri yang terisolasi sepenuhnya dari mahasiswa lain.
+          <b>Keamanan & Privasi Terjamin:</b> Kredensial diverifikasi secara real-time ke Hebat Unair. Data berkas dan akun Anda tersimpan di ruang kerja mandiri yang terisolasi sepenuhnya dari mahasiswa lain.
         </div>
-        <button type="submit" id="btn-login-submit" class="btn btn-primary btn-block">Masuk ke AutoSubmit</button>
+        <button type="submit" id="btn-login-submit" class="btn btn-primary btn-block">Masuk ke SubSecond</button>
         <p id="login-error" class="error-text hidden" style="margin-top: 10px;"></p>
       </form>
     </div>
@@ -65,12 +65,12 @@
     <header class="app-header">
       <div class="header-inner">
         <div class="header-left">
-          <span class="system-name">Hebat_Submitter</span>
+          <span class="system-name">SubSecond</span>
           <span id="user-nim-pill" class="user-nim-pill mono">NIM: --</span>
         </div>
         <!-- Header Status & Ping Indicator -->
         <div class="header-status-wrapper">
-          <div class="header-ping-pill" title="Latensi koneksi ke server Moodle">
+          <div class="header-ping-pill" title="Latensi koneksi ke server Hebat Unair">
             <span class="header-ping mono" id="header-ping">-- ms</span>
           </div>
           <div class="header-status">
@@ -98,7 +98,7 @@
       <section id="tab-beranda" class="tab-panel active">
         <div class="page-lead">
           <h1 class="screen-title" id="lead-title">Pengumpulan Tugas</h1>
-          <p class="footnote" id="lead-subtitle">Moodle Hebat UNAIR</p>
+          <p class="footnote" id="lead-subtitle">Hebat Unair</p>
         </div>
 
         <!-- Timer / Countdown Card -->
@@ -185,8 +185,14 @@
                       <span class="cal-time-tz">WIB</span>
                     </div>
                   </div>
-                  <div class="cal-selected-preview mono">
-                    Pilih tanggal pada kalender
+                  <div class="cal-selected-preview">
+                    <span class="cal-preview-icon" aria-hidden="true">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                      </svg>
+                    </span>
+                    <span class="cal-preview-text">Pilih tanggal pada kalender</span>
                   </div>
                 </div>
               </div>
@@ -195,7 +201,7 @@
               <div id="subpanel-direct" class="hidden" style="margin-top: 10px; padding: 14px; background: rgba(0,113,227,0.05); border-radius: 12px; border: 1px solid rgba(0,113,227,0.15);">
                 <div style="font-size: 13.5px; font-weight: 600; color: #0071E3; margin-bottom: 2px;">Pengiriman Langsung</div>
                 <p class="footnote" style="margin: 0; font-size: 12px; line-height: 1.4;">
-                  Tugas akan segera dikirimkan ke Moodle saat tombol di bawah ditekan, tanpa perlu menunggu jadwal otomatisasi.
+                  Tugas akan segera dikirimkan ke Hebat Unair saat tombol di bawah ditekan, tanpa perlu menunggu jadwal otomatisasi.
                 </p>
               </div>
 
@@ -254,7 +260,7 @@
       <!-- ================= TAB 2: TUGAS (BARU) ================= -->
       <section id="tab-tugas" class="tab-panel hidden">
         <div class="page-lead">
-          <h1 class="screen-title">Daftar Tugas Moodle</h1>
+          <h1 class="screen-title">Daftar Tugas Hebat Unair</h1>
           <p class="footnote">Pilih mata kuliah untuk melihat tugas yang belum dikumpulkan, sudah selesai, dikunci, atau terlewat.</p>
         </div>
 
@@ -298,7 +304,7 @@
       <section id="tab-log" class="tab-panel hidden">
         <div class="page-lead">
           <h1 class="screen-title">Log Sistem</h1>
-          <p class="footnote">Riwayat aktivitas Worker dan Moodle (seluruh rahasia disanitasi otomatis).</p>
+          <p class="footnote">Riwayat aktivitas Worker dan Hebat Unair (seluruh rahasia disanitasi otomatis).</p>
         </div>
 
         <!-- Subtab Switcher: Log Ruang Kerja vs Audit Semua Pengguna -->
@@ -351,16 +357,16 @@
       <section id="tab-pengaturan" class="tab-panel hidden">
         <div class="page-lead">
           <h1 class="screen-title">Pengaturan Akun & Server</h1>
-          <p class="footnote">Konfigurasi akun login Moodle, target server, dan bot notifikasi Telegram.</p>
+          <p class="footnote">Konfigurasi akun login Hebat Unair, target server, dan bot notifikasi Telegram.</p>
         </div>
 
         <form id="config-form">
-          <!-- Grup 1: Akun Moodle (Kredensial Mahasiswa) -->
+          <!-- Grup 1: Akun Hebat Unair (Kredensial Mahasiswa) -->
           <div class="group-wrapper">
-            <h2 class="group-header">Akun Moodle Mahasiswa</h2>
+            <h2 class="group-header">Akun Hebat Unair Mahasiswa</h2>
             <div class="group-card" style="padding: 16px;">
               <p class="footnote" style="margin-bottom: 12px;" id="creds-isolation-note">
-                <b>Akun Terautentikasi:</b> Anda telah terhubung dengan akun Moodle UNAIR Anda sendiri. Sistem akan menggunakan akun ini untuk mengunggah draft dan mengirimkan tugas secara otomatis saat jam buka.
+                <b>Akun Terautentikasi:</b> Anda telah terhubung dengan akun Hebat Unair Anda sendiri. Sistem akan menggunakan akun ini untuk mengunggah draft dan mengirimkan tugas secara otomatis saat jam buka.
               </p>
               <div class="form-group" style="margin-bottom: 14px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
@@ -379,18 +385,18 @@
             </div>
           </div>
 
-          <!-- Grup 2: Target Server Moodle -->
+          <!-- Grup 2: Target Server Hebat Unair -->
           <div class="group-wrapper">
-            <h2 class="group-header">Target Server Moodle</h2>
+            <h2 class="group-header">Target Server Hebat Unair</h2>
             <div class="group-card" style="padding: 16px;">
               <div class="form-group" style="margin-bottom: 6px;">
                 <label class="apple-label" for="cfg-moodle-target">Pilihan Server</label>
                 <select id="cfg-moodle-target" class="apple-select">
-                  <option value="https://hebat.elearning.unair.ac.id">Moodle Hebat UNAIR Asli (hebat.elearning.unair.ac.id)</option>
-                  <option value="https://moodle-mock.mufath04.workers.dev">Sandbox Mock Moodle (moodle-mock.mufath04.workers.dev)</option>
+                  <option value="https://hebat.elearning.unair.ac.id">Hebat Unair Asli (hebat.elearning.unair.ac.id)</option>
+                  <option value="https://moodle-mock.mufath04.workers.dev">Sandbox Mock Hebat Unair (moodle-mock.mufath04.workers.dev)</option>
                 </select>
                 <div style="font-size: 11.5px; color: #86868B; margin-top: 6px;">
-                  Pilih "Sandbox Mock Moodle" untuk menguji lock, pre-upload, polling, dan submit sepuasnya tanpa risiko nilai!
+                  Pilih "Sandbox Mock Hebat Unair" untuk menguji lock, pre-upload, polling, dan submit sepuasnya tanpa risiko nilai!
                   <a href="https://moodle-mock.mufath04.workers.dev" target="_blank" style="color: #0071E3; font-weight: 500; text-decoration: underline; margin-left: 4px;">Buka Web Portal Mock</a>
                 </div>
               </div>
@@ -432,7 +438,7 @@
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
                 <input type="checkbox" id="cfg-dry-run" style="width: 16px; height: 16px; accent-color: #0071E3;">
                 <label for="cfg-dry-run" style="font-size: 13.5px; font-weight: 500; color: #1D1D1F; cursor: pointer;">
-                  Mode Uji Coba (Dry Run - Tanpa kirim nyata ke Moodle)
+                  Mode Uji Coba (Dry Run - Tanpa kirim nyata ke Hebat Unair)
                 </label>
               </div>
 
@@ -444,7 +450,7 @@
               <div class="list-row interactive-row" id="action-check-row" style="padding: 10px 0; border-top: 1px solid rgba(0,0,0,0.06);">
                 <div class="row-main">
                   <span class="row-label">Periksa Koneksi & Sinkronisasi Server</span>
-                  <span class="row-meta" id="row-check-meta">Pindai status Moodle dan ukur selisih jam server</span>
+                  <span class="row-meta" id="row-check-meta">Pindai status Hebat Unair dan ukur selisih jam server</span>
                 </div>
                 <span class="row-indicator neutral">
                   <svg class="icon"><use href="#icon-chevron-right"></use></svg>
@@ -454,7 +460,7 @@
               <div class="list-row interactive-row" id="action-prepare-row" style="padding: 10px 0; border-top: 1px solid rgba(0,0,0,0.06);">
                 <div class="row-main">
                   <span class="row-label">Siapkan Draft Sekarang (Tes Pre-Upload)</span>
-                  <span class="row-meta" id="row-prepare-meta">Tes unggah draft PDF ke Moodle sekarang</span>
+                  <span class="row-meta" id="row-prepare-meta">Tes unggah draft PDF ke Hebat Unair sekarang</span>
                 </div>
                 <span class="row-indicator neutral">
                   <svg class="icon"><use href="#icon-chevron-right"></use></svg>

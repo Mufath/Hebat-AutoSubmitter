@@ -8,8 +8,13 @@ import { CookieJar, Budget, mfetch } from './moodle/http';
 import { loginMoodle } from './moodle/login';
 import { discoverAssignment } from './moodle/discover';
 import { uploadDraftFile } from './moodle/upload';
-import { checkAssignmentLock, fetchSubmissionForm, submitAssignment } from './moodle/submit';
-import { getNextWednesdayUnlockUtc, sampleServerOffset, sleepUntil } from './time';
+import {
+  buildStaticSubmissionPrefix,
+  checkAssignmentLock,
+  fetchSubmissionForm,
+  submitAssignment,
+} from './moodle/submit';
+import { getNextWednesdayUnlockUtc, sampleServerOffset, sleepUntil, warmUpConnection } from './time';
 import { Logger, LogEntry } from './log';
 import { sendTelegramNotification } from './notify';
 import { getActivePracticalSchedule, SO_PRACTICAL_SCHEDULE } from './schedule';
@@ -459,7 +464,7 @@ export class SubmitJob extends DurableObject<Env> {
     return sendTelegramNotification(
       botToken,
       targetChatId,
-      '🔔 <b>Hebat_Submitter Test</b>: Koneksi bot Telegram berhasil terhubung ke akun Anda!'
+      '🔔 <b>SubSecond Test</b>: Koneksi bot Telegram berhasil terhubung ke akun Anda!'
     );
   }
 
@@ -504,7 +509,7 @@ export class SubmitJob extends DurableObject<Env> {
     const creds = await this.getEffectiveCredentials(config);
 
     if (!creds.user || !creds.pass) {
-      throw new Error('Kredensial Moodle (NIM / Password) belum diatur di Pengaturan atau Worker secrets');
+      throw new Error('Kredensial Hebat Unair (NIM / Password) belum diatur di Pengaturan atau Worker secrets');
     }
     if (creds.pass) this.logger.addSecret(creds.pass);
     if (creds.user) this.logger.addSecret(creds.user);
@@ -583,7 +588,7 @@ export class SubmitJob extends DurableObject<Env> {
         courses: [],
         assignments: [],
         currentCourseId: courseId || config.courseId || '10978',
-        error: 'Kredensial Moodle belum diatur. Silakan periksa akun di Pengaturan.',
+        error: 'Kredensial Hebat Unair belum diatur. Silakan periksa akun di Pengaturan.',
       };
     }
 
@@ -598,7 +603,7 @@ export class SubmitJob extends DurableObject<Env> {
           courses: [],
           assignments: [],
           currentCourseId: courseId || config.courseId || '10978',
-          error: `Gagal masuk ke Moodle: ${loginRes.error}`,
+          error: `Gagal masuk ke Hebat Unair: ${loginRes.error}`,
         };
       }
 
@@ -729,7 +734,7 @@ export class SubmitJob extends DurableObject<Env> {
     // Validate credentials first
     const creds = await this.getEffectiveCredentials(config);
     if (!creds.user || !creds.pass) {
-      throw new Error('Kredensial Moodle belum lengkap! Silakan masukkan NIM dan Password Moodle Anda di Pengaturan.');
+      throw new Error('Kredensial Hebat Unair belum lengkap! Silakan masukkan NIM dan Password Cybercampus/Hebat Unair Anda di Pengaturan.');
     }
 
     // Validate PDF file is uploaded BEFORE arming so Alarm A won't fail silently in background
@@ -832,7 +837,7 @@ export class SubmitJob extends DurableObject<Env> {
 
     if (!creds.user || !creds.pass) {
       await this.setPhase('FAILED');
-      throw new Error('Kredensial Moodle belum diatur di Pengaturan atau Worker secrets');
+      throw new Error('Kredensial Hebat Unair belum diatur di Pengaturan atau Worker secrets');
     }
     if (creds.pass) this.logger.addSecret(creds.pass);
     if (creds.user) this.logger.addSecret(creds.user);
@@ -900,6 +905,7 @@ export class SubmitJob extends DurableObject<Env> {
     }
 
     const dryRun = config.dryRun !== undefined ? config.dryRun : this.env.DRY_RUN === 'true';
+    const preBuiltPrefix = buildStaticSubmissionPrefix(assignment.cmid, uploadRes.itemid);
     const tSubmitStart = Date.now();
     const submitRes = await submitAssignment(
       jar,
@@ -908,7 +914,8 @@ export class SubmitJob extends DurableObject<Env> {
       assignment.cmid,
       formFields,
       uploadRes.itemid,
-      dryRun
+      dryRun,
+      preBuiltPrefix
     );
     const tSubmitElapsed = dryRun ? Math.max(1, Date.now() - tSubmitStart) : submitRes.tPostMs;
     const tTotalPipelineMs = Math.max(tSubmitElapsed, Date.now() - tPipeline0);
@@ -935,7 +942,7 @@ export class SubmitJob extends DurableObject<Env> {
     });
 
     await this.notifyDual(
-      `✅ <b>Hebat_Submitter ${dryRun ? '[DRY RUN] ' : ''}Sukses (Langsung)!</b>\nTugas: ${assignment.name}\nDurasi kirim (POST): ${tSubmitElapsed} ms\nTotal siklus: ${tTotalPipelineMs} ms\nStatus: ${submitRes.status.statusText}`
+      `✅ <b>SubSecond ${dryRun ? '[DRY RUN] ' : ''}Sukses (Langsung)!</b>\nTugas: ${assignment.name}\nDurasi kirim (POST): ${tSubmitElapsed} ms\nTotal siklus: ${tTotalPipelineMs} ms\nStatus: ${submitRes.status.statusText}`
     );
 
     return {
@@ -994,7 +1001,7 @@ export class SubmitJob extends DurableObject<Env> {
     if (!loginRes.ok) {
       await this.appendLog('ERROR', `Alarm A login failed: ${loginRes.error}`);
       await this.recordAudit('ALARM_A_PREPARE', 'FAILED', { step: 'LOGIN', error: loginRes.error });
-      await this.notifyDual(`❌ <b>Alarm Persiapan Gagal!</b>\nLogin Moodle gagal: ${loginRes.error}`);
+      await this.notifyDual(`❌ <b>Alarm Persiapan Gagal!</b>\nLogin Hebat Unair gagal: ${loginRes.error}`);
       await this.setPhase('FAILED');
       return;
     }
@@ -1013,7 +1020,7 @@ export class SubmitJob extends DurableObject<Env> {
     if (!discRes.assignment) {
       await this.appendLog('ERROR', `Alarm A failed: assignment "${target.assignmentName}" not found`);
       await this.recordAudit('ALARM_A_PREPARE', 'FAILED', { step: 'DISCOVER' });
-      await this.notifyDual(`❌ <b>Alarm Persiapan Gagal!</b>\nTugas "${target.assignmentName}" tidak ditemukan di Moodle.`);
+      await this.notifyDual(`❌ <b>Alarm Persiapan Gagal!</b>\nTugas "${target.assignmentName}" tidak ditemukan di Hebat Unair.`);
       await this.setPhase('FAILED');
       return;
     }
@@ -1088,15 +1095,27 @@ export class SubmitJob extends DurableObject<Env> {
     const jar = CookieJar.load(savedCookies);
     const bud = new Budget(48);
 
+    // Pre-build static URL-encoded payload template before unlock so 0ms CPU is spent assembling static fields at T=0
+    const preBuiltPrefix = buildStaticSubmissionPrefix(assignment.cmid, draft.itemId);
+
     // Re-calibrate server clock offset right at T-30s using Second-Boundary Detection if we have >4s before unlock
     if (nextUnlockAt - (Date.now() + offset) > 4000 && bud.remaining > 35) {
       offset = await sampleServerOffset(jar, bud, baseUrl);
       await this.ctx.storage.put('serverOffsetMs', offset);
-      await this.appendLog('INFO', `Alarm B re-calibrated Moodle server clock offset: ${offset} ms`);
+      await this.appendLog('INFO', `Alarm B re-calibrated Hebat Unair server clock offset: ${offset} ms`);
     }
 
-    // Sleep until T - 350ms before starting polling
-    const targetPollStartMs = nextUnlockAt - 350;
+    // 1. TCP/TLS Keep-Alive Warm-Up at T - 1500ms so the socket is hot at 07:00:00.000
+    let rttMs = 80;
+    if (nextUnlockAt - (Date.now() + offset) > 1600) {
+      await sleepUntil(nextUnlockAt - 1500, offset);
+      rttMs = await warmUpConnection(jar, bud, baseUrl);
+      await this.appendLog('INFO', `TCP/TLS warm-up completed at T-1.5s (measured RTT: ${rttMs} ms)`);
+    }
+
+    // 2. Pre-Arrival Timing: launch first poll at T - (RTT / 2) so packet lands at Moodle right after 07:00:00.000
+    const oneWayMs = Math.min(120, Math.max(15, Math.round(rttMs / 2)));
+    const targetPollStartMs = nextUnlockAt - oneWayMs;
     await sleepUntil(targetPollStartMs, offset);
 
     await this.setPhase('POLLING');
@@ -1132,8 +1151,13 @@ export class SubmitJob extends DurableObject<Env> {
         break;
       }
 
-      // Wait 180ms before next poll (spec 8.4)
-      await new Promise(r => setTimeout(r, 180));
+      // Two-Gear Polling:
+      // - Gear 1 (Critical Window <= T + 1500ms & healthy budget): 15ms interval for near-zero dead wait
+      // - Gear 2 (Fallback Window > T + 1500ms): 180ms interval to conserve 50-subrequest budget over 2 minutes
+      const nowServer = Date.now() + offset;
+      const inCriticalWindow = nowServer <= nextUnlockAt + 1500 && bud.remaining > 22;
+      const pollDelayMs = inCriticalWindow ? 15 : 180;
+      await new Promise(r => setTimeout(r, pollDelayMs));
     }
 
     if (!unlocked) {
@@ -1141,7 +1165,7 @@ export class SubmitJob extends DurableObject<Env> {
       await this.setPhase('FAILED');
       await this.recordAudit('SUBMIT', 'TIMEOUT', { assignment: assignment.name });
       await this.notifyDual(
-        `⚠️ <b>AutoSubmit Alert</b>: Tugas "${assignment.name}" belum terbuka setelah 120 detik. Silakan submit manual!`
+        `⚠️ <b>SubSecond Alert</b>: Tugas "${assignment.name}" belum terbuka setelah 120 detik. Silakan submit manual!`
       );
       return;
     }
@@ -1176,7 +1200,8 @@ export class SubmitJob extends DurableObject<Env> {
       assignment.cmid,
       formFields,
       draft.itemId,
-      dryRun
+      dryRun,
+      preBuiltPrefix
     );
 
     const tSubmitElapsed = dryRun ? Math.max(1, Date.now() - tSubmit0) : submitRes.tPostMs;
@@ -1204,7 +1229,7 @@ export class SubmitJob extends DurableObject<Env> {
 
     // Notify Telegram (Dual dispatch)
     await this.notifyDual(
-      `✅ <b>Hebat_Submitter ${dryRun ? '[DRY RUN] ' : ''}Sukses!</b>\nTugas: ${assignment.name}\nDurasi kirim (POST): ${tSubmitElapsed} ms\nTotal siklus: ${tTotalPipelineMs} ms\nStatus: ${submitRes.status.statusText}`
+      `✅ <b>SubSecond ${dryRun ? '[DRY RUN] ' : ''}Sukses!</b>\nTugas: ${assignment.name}\nDurasi kirim (POST): ${tSubmitElapsed} ms\nTotal siklus: ${tTotalPipelineMs} ms\nStatus: ${submitRes.status.statusText}`
     );
 
     // Auto-weekly rescheduling (only if autoWeekly and not custom schedule)

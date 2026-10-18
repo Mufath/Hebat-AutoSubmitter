@@ -4,7 +4,7 @@ export function renderMockMoodleHtml(baseUrl: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Moodle Hebat UNAIR - Sandbox Testing Server</title>
+  <title>Hebat Unair - Sandbox Testing Server</title>
   <style>
     :root {
       --unair-blue: #003366;
@@ -287,7 +287,7 @@ export function renderMockMoodleHtml(baseUrl: string): string {
           <span class="badge badge-info" id="draft-count">0 File</span>
         </div>
         <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-          Moodle mengizinkan pre-upload ke draft repository via <code>repository_ajax.php?action=upload</code> bahkan saat tugas masih terkunci.
+          Hebat Unair mengizinkan pre-upload ke draft repository via <code>repository_ajax.php?action=upload</code> bahkan saat tugas masih terkunci.
         </p>
         <div id="draft-list" style="font-size: 13px; color: var(--text-muted);">
           Belum ada draft file yang diunggah oleh bot.
@@ -311,7 +311,7 @@ export function renderMockMoodleHtml(baseUrl: string): string {
           <button class="btn btn-danger btn-block" onclick="resetState()">🧹 Reset Semua Data</button>
         </div>
         <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">
-          URL Base Mock untuk AutoSubmit:<br>
+          URL Base Mock untuk SubSecond:<br>
           <code style="color: var(--unair-blue); font-weight: bold;" id="mock-url-code">${baseUrl}</code>
         </div>
       </div>
@@ -322,7 +322,7 @@ export function renderMockMoodleHtml(baseUrl: string): string {
           <button class="btn btn-secondary" style="font-size: 10px; padding: 2px 6px;" onclick="loadState()">Refresh</button>
         </div>
         <div class="log-box" id="log-box">
-          <div style="color: #64748B;">Menunggu koneksi dari AutoSubmit...</div>
+          <div style="color: #64748B;">Menunggu koneksi dari SubSecond...</div>
         </div>
       </div>
     </aside>
@@ -368,7 +368,7 @@ export function renderMockMoodleHtml(baseUrl: string): string {
         banner.className = 'status-banner submitted';
         icon.textContent = '✅';
         title.textContent = 'Tugas Berhasil Dikumpulkan!';
-        desc.textContent = \`Diterima di server Moodle pada \${new Date(sub.submittedAt).toLocaleTimeString('id-ID')}.\`;
+        desc.textContent = \`Diterima di server Hebat Unair pada \${new Date(sub.submittedAt).toLocaleTimeString('id-ID')}.\`;
 
         document.getElementById('row-submission-status').innerHTML = '<span class="badge badge-success">Diserahkan untuk dinilai (Submitted for grading)</span>';
         document.getElementById('row-submit-time').textContent = new Date(sub.submittedAt).toLocaleString('id-ID') + ' (' + sub.submittedAt + ')';

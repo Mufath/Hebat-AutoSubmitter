@@ -107,7 +107,7 @@ export default {
         const password = (body.password || '').trim();
 
         if (!rawNim || !password) {
-          return jsonResponse({ ok: false, error: 'Harap masukkan NIM dan Password Cybercampus/Moodle Anda.' }, 400);
+          return jsonResponse({ ok: false, error: 'Harap masukkan NIM dan Password Cybercampus / Hebat Unair Anda.' }, 400);
         }
 
         const cleanNim = rawNim.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -115,21 +115,21 @@ export default {
           return jsonResponse({ ok: false, error: 'Format NIM tidak valid.' }, 400);
         }
 
-        // Direct real-time authentication with Moodle UNAIR
+        // Direct real-time authentication with Hebat Unair
         const moodleBase = env.MOODLE_BASE || 'https://hebat.elearning.unair.ac.id';
         const jar = new CookieJar();
         const bud = new Budget(40);
         const loginRes = await loginMoodle(jar, bud, moodleBase, cleanNim, password);
 
         if (!loginRes.ok) {
-          let errDetail = 'NIM atau Password Moodle salah. Periksa kembali akun Cybercampus Anda.';
+          let errDetail = 'NIM atau Password Hebat Unair salah. Periksa kembali akun Cybercampus Anda.';
           if (loginRes.error === 'NO_MOODLE_SESSION_COOKIE' || loginRes.error === 'LOGIN_REJECTED') {
-            errDetail = 'NIM atau Password Cybercampus tidak cocok. Akses Moodle ditolak.';
+            errDetail = 'NIM atau Password Cybercampus tidak cocok. Akses Hebat Unair ditolak.';
           }
           return jsonResponse({ ok: false, error: errDetail }, 401);
         }
 
-        // Successfully verified with Moodle
+        // Successfully verified with Hebat Unair
         const expiryMs = Date.now() + SESSION_TTL_MS;
         const secret = env.SESSION_HMAC_KEY || 'hebat-submitter-unair-session-key-32b';
         const token = await signSessionToken(secret, expiryMs, cleanNim);
@@ -146,7 +146,7 @@ export default {
         const cookie = `${COOKIE_NAME}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${12 * 3600}`;
         return jsonResponse({ ok: true, nim: cleanNim, isOwner }, 200, { 'set-cookie': cookie });
       } catch (err: any) {
-        return jsonResponse({ ok: false, error: `Gagal verifikasi Moodle: ${err.message}` }, 500);
+        return jsonResponse({ ok: false, error: `Gagal verifikasi Hebat Unair: ${err.message}` }, 500);
       }
     }
 
@@ -343,7 +343,7 @@ export default {
     }
 
     return new Response(
-      `<!DOCTYPE html><html><head><title>Hebat Submitter</title></head><body><h1>Hebat Submitter Active</h1><p>UI assets not found.</p></body></html>`,
+      `<!DOCTYPE html><html><head><title>SubSecond</title></head><body><h1>SubSecond Active</h1><p>UI assets not found.</p></body></html>`,
       { headers: { 'content-type': 'text/html; charset=utf-8' } }
     );
   },

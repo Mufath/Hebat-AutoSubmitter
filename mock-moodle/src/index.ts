@@ -176,7 +176,7 @@ export class MockMoodleDO extends DurableObject<Env> {
       const html = `
         <!DOCTYPE html>
         <html>
-        <head><title>Moodle Hebat UNAIR Login</title></head>
+        <head><title>Hebat Unair Login</title></head>
         <body>
           <form action="/login/index.php" method="post" id="login">
             <input type="hidden" name="logintoken" value="mock_logintoken_${Date.now()}">
@@ -237,7 +237,7 @@ export class MockMoodleDO extends DurableObject<Env> {
       const coursesHtml = `
         <!DOCTYPE html>
         <html>
-        <head><title>Dashboard Mahasiswa - Hebat Moodle</title></head>
+        <head><title>Dashboard Mahasiswa - Hebat Unair</title></head>
         <body>
           <div class="courses-view">
             <a href="/course/view.php?id=10978">Sistem Operasi (Praktikum)</a>

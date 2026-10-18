@@ -1,6 +1,6 @@
-# Panduan Kustomisasi Tampilan Web UI (Hebat Submitter)
+# Panduan Kustomisasi Tampilan Web UI (SubSecond)
 
-Dokumen ini menjelaskan cara mudah memodifikasi tampilan, warna tema, logo, dan teks pada antarmuka web dashboard **Hebat Submitter**.
+Dokumen ini menjelaskan cara mudah memodifikasi tampilan, warna tema, logo, dan teks pada antarmuka web dashboard **SubSecond**.
 
 ---
 
@@ -45,7 +45,7 @@ Untuk mengubah teks judul aplikasi atau nama instansi:
 2. Cari bagian `<div class="brand-header">` atau `<div class="nav-brand">`.
 3. Ganti teks:
    - `<span class="brand-badge">UNAIR</span>` → Ganti badge kampus jika diinginkan.
-   - `<h1>Hebat Submitter</h1>` → Ganti dengan nama judul aplikasi pilihan Anda.
+   - `<h1>SubSecond</h1>` → Ganti dengan nama judul aplikasi pilihan Anda.
    - `⚡` (logo icon) → Ganti dengan emoji atau gambar `<img>` logo Anda.
 
 ---

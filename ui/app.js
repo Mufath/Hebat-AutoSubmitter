@@ -1,6 +1,6 @@
 /**
  * ui/app.js
- * Controller for Hebat_Submitter Apple-Native UI with 60FPS WebGL Fluid Flow Canvas.
+ * Controller for SubSecond Apple-Native UI with 60FPS WebGL Fluid Flow Canvas.
  */
 
 // ----------------------------------------------------------------------------
@@ -505,13 +505,13 @@ async function refreshStatus() {
     // Lead Title & Subtitle
     if (status.assignment) {
       leadTitle.textContent = status.assignment.name;
-      leadSubtitle.textContent = 'Target Tugas Moodle Aktif';
+      leadSubtitle.textContent = 'Target Tugas Hebat Unair Aktif';
     } else if (status.activeSchedule) {
       leadTitle.textContent = `Week ${status.activeSchedule.week}`;
       leadSubtitle.textContent = status.activeSchedule.assignmentName;
     } else {
       leadTitle.textContent = 'Pengumpulan Tugas';
-      leadSubtitle.textContent = 'Moodle Hebat UNAIR';
+      leadSubtitle.textContent = 'Hebat Unair';
     }
 
     // Quick File Display (Beranda)
@@ -730,7 +730,7 @@ async function disarmJob() {
 }
 
 async function submitDirectJob() {
-  if (!confirm('Apakah Anda yakin ingin mengirim tugas ini sekarang ke Moodle?')) return;
+  if (!confirm('Apakah Anda yakin ingin mengirim tugas ini sekarang ke Hebat Unair?')) return;
   btnMainAction.disabled = true;
   try {
     const res = await apiRequest('/api/submit-now', 'POST');
@@ -750,13 +750,13 @@ async function submitDirectJob() {
 
 if (actionCheckRow) {
   actionCheckRow.addEventListener('click', async () => {
-    rowCheckMeta.textContent = 'Memindai Moodle...';
+    rowCheckMeta.textContent = 'Memindai Hebat Unair...';
     try {
       const res = await apiRequest('/api/check', 'POST');
       if (res.ok) {
         const skewSign = (res.serverOffsetMs || 0) >= 0 ? '+' : '';
         rowCheckMeta.textContent = `Terkoneksi (Selisih Jam Server: ${skewSign}${res.serverOffsetMs} ms)`;
-        showToast(`Terkoneksi ke Moodle! Selisih jam server: ${skewSign}${res.serverOffsetMs} ms`);
+        showToast(`Terkoneksi ke Hebat Unair! Selisih jam server: ${skewSign}${res.serverOffsetMs} ms`);
       } else {
         rowCheckMeta.textContent = `Gagal: ${res.error}`;
         showToast(`Pindai Gagal: ${res.error}`);
@@ -776,7 +776,7 @@ if (actionPrepareRow) {
     try {
       const res = await apiRequest('/api/prepare', 'POST');
       if (res.ok) {
-        showToast('Draft area berhasil disiapkan di server Moodle!');
+        showToast('Draft area berhasil disiapkan di server Hebat Unair!');
       }
     } catch (e) {
       showToast(`Error: ${e.message}`);
@@ -794,8 +794,8 @@ if (actionSimulateRow) {
   actionSimulateRow.addEventListener('click', async () => {
     const isDryRun = cfgDryRun ? cfgDryRun.checked : false;
     const modeStr = isDryRun
-      ? 'Mode Uji Coba (Tanpa mengubah nilai di Moodle)'
-      : 'Pengiriman Nyata ke Moodle';
+      ? 'Mode Uji Coba (Tanpa mengubah nilai di Hebat Unair)'
+      : 'Pengiriman Nyata ke Hebat Unair';
     const msg =
       `Mulai Uji Coba Pengiriman Otomatis (2 Menit)?\n\n` +
       `Mode: ${modeStr}\n\n` +
@@ -1067,7 +1067,7 @@ function getStatusBadgeLabel(status) {
 
 async function loadCoursesAndAssignments(forceCourseId = null) {
   if (assignmentsListContainer) {
-    assignmentsListContainer.innerHTML = '<div class="list-row"><span class="row-label text-subtle">Memuat daftar mata kuliah dan tugas dari Moodle...</span></div>';
+    assignmentsListContainer.innerHTML = '<div class="list-row"><span class="row-label text-subtle">Memuat daftar mata kuliah dan tugas dari Hebat Unair...</span></div>';
   }
 
   try {
@@ -1164,7 +1164,7 @@ function renderAssignmentsList() {
       metaInfo += `<div class="footnote" style="font-size: 11.5px; color: #86868B;">Ditutup: ${escapeHtml(a.availableUntilText)}</div>`;
     }
     if (a.submissionStatusText) {
-      metaInfo += `<div class="footnote" style="font-size: 11.5px; color: #6E6E73;">Status Moodle: ${escapeHtml(a.submissionStatusText)}</div>`;
+      metaInfo += `<div class="footnote" style="font-size: 11.5px; color: #6E6E73;">Status Hebat Unair: ${escapeHtml(a.submissionStatusText)}</div>`;
     }
 
     row.innerHTML = `
@@ -1366,10 +1366,17 @@ function syncCalendarSelection(sourceHourEl = null, sourceMinEl = null) {
   });
   const pad = (n) => String(n).padStart(2, '0');
   const timeFormatted = `${pad(calSelectedDate.getHours())}:${pad(calSelectedDate.getMinutes())}:00 WIB`;
-  const previewText = `Target: ${dateFormatted}, pukul ${timeFormatted}`;
 
   document.querySelectorAll('.cal-selected-preview').forEach(el => {
-    el.textContent = previewText;
+    el.innerHTML = `
+      <span class="cal-preview-icon" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+      </span>
+      <span class="cal-preview-text">Target: <strong>${dateFormatted}</strong>, pukul <strong>${timeFormatted}</strong></span>
+    `;
   });
 }
 
@@ -1872,10 +1879,10 @@ loginForm.addEventListener('submit', async (e) => {
     return;
   }
 
-  const origBtnText = btnLoginSubmit ? btnLoginSubmit.textContent : 'Masuk ke AutoSubmit';
+  const origBtnText = btnLoginSubmit ? btnLoginSubmit.textContent : 'Masuk ke SubSecond';
   if (btnLoginSubmit) {
     btnLoginSubmit.disabled = true;
-    btnLoginSubmit.textContent = 'Memverifikasi ke Moodle UNAIR...';
+    btnLoginSubmit.textContent = 'Memverifikasi ke Hebat Unair...';
   }
 
   try {
@@ -1892,7 +1899,7 @@ loginForm.addEventListener('submit', async (e) => {
       showApp();
       await refreshStatus();
     } else {
-      loginError.textContent = json.error || 'NIM atau Password Moodle salah.';
+      loginError.textContent = json.error || 'NIM atau Password Hebat Unair salah.';
       loginError.classList.remove('hidden');
     }
   } catch (err) {

@@ -1,8 +1,18 @@
 import { DurableObject } from 'cloudflare:workers';
-import { renderMockMoodleHtml } from './ui';
+import {
+  renderLandingHtml,
+  renderLoginHtml,
+  renderDashboardHtml,
+  renderMyCoursesHtml,
+  renderCourseViewHtml,
+  renderAssignmentViewHtml,
+  renderEditSubmissionHtml,
+  MockAppState,
+} from './ui';
 
 interface Env {
   MOCK_DO: DurableObjectNamespace<MockMoodleDO>;
+  ASSETS?: Fetcher;
 }
 
 interface DraftFile {
@@ -15,6 +25,7 @@ interface DraftFile {
 }
 
 interface SubmissionRecord {
+  rank: number;
   cmid: number;
   fileName: string;
   size: number;
@@ -22,6 +33,8 @@ interface SubmissionRecord {
   submittedAt: number;
   timeFromUnlockMs: number;
   status: string;
+  botName?: string;
+  userAgent?: string;
 }
 
 interface TrafficLog {
@@ -59,9 +72,9 @@ export class MockMoodleDO extends DurableObject<Env> {
     await this.ctx.storage.put('unlockTimestampMs', this.unlockTimestampMs);
     await this.ctx.storage.put('lagMs', this.lagMs);
     await this.ctx.storage.put('offsetMs', this.offsetMs);
-    await this.ctx.storage.put('drafts', this.drafts.slice(-10));
-    await this.ctx.storage.put('submissions', this.submissions.slice(-10));
-    await this.ctx.storage.put('trafficLogs', this.trafficLogs.slice(-50));
+    await this.ctx.storage.put('drafts', this.drafts.slice(-15));
+    await this.ctx.storage.put('submissions', this.submissions.slice(-15));
+    await this.ctx.storage.put('trafficLogs', this.trafficLogs.slice(-60));
   }
 
   private logTraffic(method: string, path: string, query: string, status: number, note: string, elapsedMs: number) {
@@ -76,14 +89,25 @@ export class MockMoodleDO extends DurableObject<Env> {
       elapsedMs,
     };
     this.trafficLogs.push(entry);
-    if (this.trafficLogs.length > 50) this.trafficLogs.shift();
+    if (this.trafficLogs.length > 60) this.trafficLogs.shift();
+  }
+
+  private getState(): MockAppState {
+    return {
+      unlockTimestampMs: this.unlockTimestampMs,
+      lagMs: this.lagMs,
+      offsetMs: this.offsetMs,
+      drafts: this.drafts,
+      submissions: this.submissions,
+      trafficLogs: this.trafficLogs,
+    };
   }
 
   async fetch(req: Request): Promise<Response> {
     const t0 = Date.now();
     const url = new URL(req.url);
 
-    // Apply simulated lag if configured
+    // Apply simulated lag if configured (except control APIs)
     if (this.lagMs > 0 && !url.pathname.startsWith('/mock-api/')) {
       await new Promise(resolve => setTimeout(resolve, this.lagMs));
     }
@@ -103,17 +127,20 @@ export class MockMoodleDO extends DurableObject<Env> {
     };
 
     // ------------------------------------------------------------------------
-    // Control API
+    // Static Assets Fallback
+    // ------------------------------------------------------------------------
+    if (url.pathname.startsWith('/assets/')) {
+      if (this.env.ASSETS) {
+        const assetRes = await this.env.ASSETS.fetch(req);
+        if (assetRes.status !== 404) return assetRes;
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // Control API for Sandbox & Neutral Referee
     // ------------------------------------------------------------------------
     if (url.pathname === '/mock-api/state' && req.method === 'GET') {
-      return Response.json({
-        unlockTimestampMs: this.unlockTimestampMs,
-        lagMs: this.lagMs,
-        offsetMs: this.offsetMs,
-        drafts: this.drafts,
-        submissions: this.submissions,
-        trafficLogs: this.trafficLogs,
-      });
+      return Response.json(this.getState());
     }
 
     if (url.pathname === '/mock-api/set-unlock' && req.method === 'POST') {
@@ -156,51 +183,69 @@ export class MockMoodleDO extends DurableObject<Env> {
     }
 
     // ------------------------------------------------------------------------
-    // Moodle Protocol Routes
+    // Moodle Protocol Routes (1:1 HEBAT Unair Realism)
     // ------------------------------------------------------------------------
 
-    // Root UI
+    // 1. Root / Landing Page Hebat Gen 2
     if (url.pathname === '/' || url.pathname === '/index.php') {
       if (req.method === 'HEAD') {
         return makeRes(null, 200);
       }
-      return makeRes(renderMockMoodleHtml(url.origin), 200, { 'Content-Type': 'text/html; charset=utf-8' });
-    }
-
-    // Login Form HEAD / GET
-    if (url.pathname === '/login/index.php' && req.method === 'HEAD') {
-      return makeRes(null, 200, { 'X-Note': 'Clock Sync HEAD Probe' });
-    }
-
-    if (url.pathname === '/login/index.php' && req.method === 'GET') {
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head><title>Hebat Unair Login</title></head>
-        <body>
-          <form action="/login/index.php" method="post" id="login">
-            <input type="hidden" name="logintoken" value="mock_logintoken_${Date.now()}">
-            <input type="text" name="username" id="username">
-            <input type="password" name="password" id="password">
-            <button type="submit">Log in</button>
-          </form>
-        </body>
-        </html>
-      `;
-      return makeRes(html, 200, { 'Content-Type': 'text/html; charset=utf-8', 'X-Note': 'Form Login disajikan' });
-    }
-
-    // Login POST
-    if (url.pathname === '/login/index.php' && req.method === 'POST') {
-      const sessCookie = `mock_session_${Date.now()}`;
-      return makeRes(null, 303, {
-        'Location': `${url.origin}/`,
-        'Set-Cookie': `MoodleSession=${sessCookie}; Path=/; HttpOnly; SameSite=Lax`,
-        'X-Note': 'Login Berhasil, MoodleSession diterbitkan',
+      return makeRes(renderLandingHtml(url.origin), 200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Note': 'Landing Page Hebat Gen 2 Disajikan',
       });
     }
 
-    // Discovery API: /lib/ajax/service.php
+    // 2. Login Form HEAD (Clock Sync Probe) / GET / POST
+    if (url.pathname === '/login/' || url.pathname === '/login/index.php') {
+      if (req.method === 'HEAD') {
+        return makeRes(null, 200, { 'X-Note': 'Clock Sync HEAD Probe (Server Time Disajikan)' });
+      }
+
+      if (req.method === 'GET') {
+        return makeRes(renderLoginHtml(url.origin), 200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Note': 'Form Login Hebat disajikan',
+        });
+      }
+
+      if (req.method === 'POST') {
+        const sessCookie = `mock_session_${Date.now()}`;
+        return makeRes(null, 303, {
+          'Location': `${url.origin}/my/`,
+          'Set-Cookie': `MoodleSession=${sessCookie}; Path=/; HttpOnly; SameSite=Lax`,
+          'X-Note': 'Login Berhasil, Redirect ke Dashboard /my/',
+        });
+      }
+    }
+
+    // 3. Student Dashboard: /my/ or /my
+    if (url.pathname === '/my/' || url.pathname === '/my' || url.pathname === '/my/index.php') {
+      return makeRes(renderDashboardHtml(url.origin, this.getState()), 200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Note': 'Dashboard Mahasiswa disajikan',
+      });
+    }
+
+    // 4. My Courses Page: /my/courses.php
+    if (url.pathname === '/my/courses.php') {
+      return makeRes(renderMyCoursesHtml(url.origin), 200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Note': 'Daftar Kursus Mahasiswa disajikan',
+      });
+    }
+
+    // 5. Course Page: /course/view.php or /course/section.php
+    if (url.pathname === '/course/view.php' || url.pathname === '/course/section.php') {
+      const courseId = url.searchParams.get('id') || '10978';
+      return makeRes(renderCourseViewHtml(url.origin, courseId, this.getState()), 200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Note': `Halaman Kursus ${courseId} disajikan`,
+      });
+    }
+
+    // 6. Discovery API for SubSecond / Moodle Ajax: /lib/ajax/service.php
     if (url.pathname === '/lib/ajax/service.php') {
       const unlockSec = Math.floor(this.unlockTimestampMs / 1000);
       const resData = [
@@ -209,7 +254,7 @@ export class MockMoodleDO extends DurableObject<Env> {
           data: [
             {
               id: 75330,
-              name: 'Week 8',
+              name: 'Week 8 - NDG Linux Essentials',
               modules: [
                 {
                   id: 101761,
@@ -232,78 +277,7 @@ export class MockMoodleDO extends DurableObject<Env> {
       });
     }
 
-    // My Courses / Dashboard
-    if (url.pathname === '/my/courses.php' || url.pathname === '/my/' || url.pathname === '/my') {
-      const coursesHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head><title>Dashboard Mahasiswa - Hebat Unair</title></head>
-        <body>
-          <div class="courses-view">
-            <a href="/course/view.php?id=10978">Sistem Operasi (Praktikum)</a>
-            <a href="/course/view.php?id=10852">Algoritma & Pemrograman II</a>
-            <a href="/course/view.php?id=10733">Basis Data</a>
-          </div>
-        </body>
-        </html>
-      `;
-      return makeRes(coursesHtml, 200, { 'Content-Type': 'text/html; charset=utf-8' });
-    }
-
-    // Section view: /course/section.php
-    if (url.pathname === '/course/section.php') {
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <body>
-          <div class="section">
-            <a href="/mod/assign/view.php?id=101761">Pengumpulan Modul Prak Lab 8 NDG Linux Essential</a>
-          </div>
-        </body>
-        </html>
-      `;
-      return makeRes(html, 200, { 'Content-Type': 'text/html; charset=utf-8' });
-    }
-
-    // Course view: /course/view.php
-    if (url.pathname === '/course/view.php') {
-      const courseId = url.searchParams.get('id') || '10978';
-      const unlockDateStr = new Date(this.unlockTimestampMs).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head><title>Course ${courseId}</title></head>
-        <body>
-          <script>M.cfg = { contextid: "288276", sesskey: "mock_sess_${Date.now()}", userId: "12345" };</script>
-          <ul class="section img-text">
-            <li id="module-101761" class="activity assign modtype_assign">
-              <div>
-                <a class="aal_link" href="/mod/assign/view.php?id=101761"><span class="instancename">Pengumpulan Modul Prak Lab 8 NDG Linux Essential</span></a>
-                <div class="availabilityinfo isrestricted">Available from ${unlockDateStr}, 7:00 AM</div>
-                <div class="activity-dates">Due date: 22 October 2026, 23:59</div>
-              </div>
-            </li>
-            <li id="module-101762" class="activity assign modtype_assign">
-              <div>
-                <a class="aal_link" href="/mod/assign/view.php?id=101762"><span class="instancename">Tugas Analisis Penjadwalan CPU</span></a>
-                <div class="activity-dates">Due date: 18 October 2026, 23:59</div>
-              </div>
-            </li>
-            <li id="module-101763" class="activity assign modtype_assign">
-              <div>
-                <a class="aal_link" href="/mod/assign/view.php?id=101763"><span class="instancename">Laporan Praktikum Mandiri Pekan 7</span></a>
-                <div class="submissionstatussubmitted">Submitted for grading</div>
-                <div class="activity-dates">Due date: 10 October 2026, 23:59</div>
-              </div>
-            </li>
-          </ul>
-        </body>
-        </html>
-      `;
-      return makeRes(html, 200, { 'Content-Type': 'text/html; charset=utf-8' });
-    }
-
-    // Draft Pre-Upload: /repository/repository_ajax.php?action=upload
+    // 7. Draft Pre-Upload: /repository/repository_ajax.php?action=upload
     if (url.pathname === '/repository/repository_ajax.php' && url.searchParams.get('action') === 'upload') {
       try {
         const formData = await req.formData();
@@ -360,37 +334,62 @@ export class MockMoodleDO extends DurableObject<Env> {
       }
     }
 
-    // Assignment View / Submission: /mod/assign/view.php
+    // 8. Assignment View & Submit: /mod/assign/view.php
     if (url.pathname === '/mod/assign/view.php') {
       const now = Date.now() + this.offsetMs;
       const isLocked = now < this.unlockTimestampMs;
+      const cmid = url.searchParams.get('id') || '101761';
+      const action = url.searchParams.get('action');
 
-      // POST: savesubmission
+      // POST: savesubmission (MUTASI NYATA PENGUMPULAN TUGAS)
       if (req.method === 'POST') {
         if (isLocked) {
           return makeRes('Assignment is locked for submission', 403, {
-            'X-Note': `[SUBMIT REJECTED] Tugas terkunci hingga ${new Date(this.unlockTimestampMs).toISOString()}`,
+            'X-Note': `[SUBMIT DITOLAK] Tugas terkunci hingga ${new Date(this.unlockTimestampMs).toISOString()}`,
           });
         }
 
         const formText = await req.text();
         const params = new URLSearchParams(formText);
-        const action = params.get('action');
+        const postAction = params.get('action');
         const draftItemId = parseInt(params.get('files_filemanager') || '0', 10);
 
-        if (action === 'savesubmission') {
+        if (postAction === 'savesubmission') {
           const draft = this.drafts.find(d => d.itemId === draftItemId) || this.drafts[this.drafts.length - 1];
           const submitTime = now;
           const latencyMs = submitTime - this.unlockTimestampMs;
+          const userAgent = req.headers.get('user-agent') || 'Unknown Agent';
 
+          // Detect Bot Identity
+          const customHeader = req.headers.get('x-bot-name') || req.headers.get('x-client-id');
+          let botName = customHeader || '';
+          if (!botName) {
+            if (userAgent.includes('Cloudflare-Workers') || userAgent.includes('SubSecond')) {
+              botName = 'SubSecond ⚡';
+            } else if (userAgent.includes('python') || userAgent.includes('requests') || userAgent.includes('aiohttp')) {
+              botName = 'Bot Teman (Python)';
+            } else if (userAgent.includes('curl') || userAgent.includes('Wget')) {
+              botName = 'Bot Teman (cURL)';
+            } else if (userAgent.includes('Node') || userAgent.includes('undici') || userAgent.includes('axios')) {
+              botName = 'Bot (Node.js)';
+            } else {
+              const count = this.submissions.length + 1;
+              botName = count === 1 ? 'Peserta #1' : count === 2 ? 'Peserta #2' : `Peserta #${count}`;
+            }
+          }
+
+          const rank = this.submissions.length + 1;
           const record: SubmissionRecord = {
-            cmid: 101761,
-            fileName: draft ? draft.fileName : 'submission.pdf',
-            size: draft ? draft.size : 1024,
+            rank,
+            cmid: parseInt(cmid, 10),
+            fileName: draft ? draft.fileName : 'PrakSO_I3_Week8_187251052.pdf',
+            size: draft ? draft.size : 2048,
             draftItemId: draftItemId,
             submittedAt: submitTime,
             timeFromUnlockMs: latencyMs,
             status: 'Submitted for grading',
+            botName,
+            userAgent,
           };
 
           this.submissions.push(record);
@@ -398,80 +397,39 @@ export class MockMoodleDO extends DurableObject<Env> {
 
           // Real Moodle responds with 303 redirect to /mod/assign/view.php?id=cmid
           return makeRes(null, 303, {
-            'Location': `${url.origin}/mod/assign/view.php?id=101761`,
-            'X-Note': `[SUBMISSION SUCCESS] Masuk +${latencyMs}ms dari jam buka!`,
+            'Location': `${url.origin}/mod/assign/view.php?id=${cmid}`,
+            'X-Note': `[PENGUMPULAN SUKSES] Juara #${rank} (${botName}) masuk +${latencyMs}ms dari jam buka!`,
           });
         }
       }
 
       // GET: view or editsubmission
       if (req.method === 'GET') {
-        // EXACT MOODLE BEHAVIOR: Redirect to course page if locked!
-        if (isLocked) {
-          return makeRes(null, 303, {
-            'Location': `${url.origin}/course/view.php?id=10978`,
-            'X-Note': `[LOCK ENFORCED] 303 Redirect ke Course (Buka: ${new Date(this.unlockTimestampMs).toLocaleTimeString('id-ID')})`,
-          });
-        }
-
-        // UNLOCKED!
-        const action = url.searchParams.get('action');
         const latestDraft = this.drafts[this.drafts.length - 1];
         const draftId = latestDraft ? latestDraft.itemId : 987654321;
 
+        // If bot probes editsubmission while locked:
+        // EXACT MOODLE BEHAVIOR: 303 Redirect to course page!
         if (action === 'editsubmission') {
-          const formHtml = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <script>var M = { cfg: { sesskey: "mock_sesskey_unair_999" } };</script>
-            </head>
-            <body>
-              <form action="/mod/assign/view.php?id=101761" method="post" id="mform1">
-                <input type="hidden" name="id" value="101761">
-                <input type="hidden" name="action" value="savesubmission">
-                <input type="hidden" name="sesskey" value="mock_sesskey_unair_999">
-                <input type="hidden" name="_qf__mod_assign_submission_form" value="1">
-                <input type="hidden" name="mform_isexpanded_id_submissionheader" value="1">
-                <input type="hidden" name="userid" value="99999">
-                <input type="hidden" name="lastmodified" value="${Math.floor(Date.now() / 1000)}">
-                <input type="hidden" name="files_filemanager" value="${draftId}">
-                <input type="submit" name="submitbutton" value="Save changes">
-              </form>
-            </body>
-            </html>
-          `;
-          return makeRes(formHtml, 200, {
+          if (isLocked) {
+            return makeRes(null, 303, {
+              'Location': `${url.origin}/course/view.php?id=10978`,
+              'X-Note': `[TERKUNCI] 303 Redirect ke Course (Buka: ${new Date(this.unlockTimestampMs).toLocaleTimeString('id-ID')})`,
+            });
+          }
+          // Unlocked: Render 1:1 Edit Submission Form
+          return makeRes(renderEditSubmissionHtml(url.origin, cmid, draftId, this.getState()), 200, {
             'Content-Type': 'text/html; charset=utf-8',
-            'X-Note': '[UNLOCKED] Form Submission editsubmission disajikan ke bot',
+            'X-Note': '[TERBUKA] Form editsubmission disajikan ke bot/mahasiswa',
           });
         }
 
-        const latestSubmission = this.submissions[this.submissions.length - 1];
-        const isSubmitted = Boolean(latestSubmission);
-        const statusDiv = isSubmitted
-          ? `<div class="submissionstatussubmitted">Submitted for grading</div><div class="fileuploadsubmission"><a href="/draftfile.php/${latestSubmission.fileName}">${latestSubmission.fileName}</a></div>`
-          : `<div class="submissionstatus">Draft (not submitted)</div>`;
-
-        // Default view (unlocked, not editing)
-        const viewHtml = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <script>var M = { cfg: { sesskey: "mock_sesskey_unair_999" } };</script>
-          </head>
-          <body>
-            <h2>Pengumpulan Modul Prak Lab 8 NDG Linux Essential</h2>
-            ${statusDiv}
-            <a href="/mod/assign/view.php?id=101761&action=editsubmission">Add submission</a>
-          </body>
-          </html>
-        `;
-        return makeRes(viewHtml, 200, {
+        // Standard Assignment View (No action=editsubmission)
+        return makeRes(renderAssignmentViewHtml(url.origin, cmid, this.getState()), 200, {
           'Content-Type': 'text/html; charset=utf-8',
-          'X-Note': isSubmitted
-            ? '[VERIFIED] Halaman status Submitted for grading ditampilkan'
-            : '[UNLOCKED] Halaman tugas terbuka (Link Add submission aktif)',
+          'X-Note': isLocked
+            ? '[TERKUNCI] Halaman Tugas (Restricted) disajikan'
+            : '[TERBUKA] Halaman Tugas (Siap Submit) disajikan',
         });
       }
     }
@@ -482,6 +440,11 @@ export class MockMoodleDO extends DurableObject<Env> {
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
+    const url = new URL(req.url);
+    if (env.ASSETS && url.pathname.startsWith('/assets/')) {
+      const assetRes = await env.ASSETS.fetch(req);
+      if (assetRes.status !== 404) return assetRes;
+    }
     const id = env.MOCK_DO.idFromName('singleton_moodle_mock');
     const stub = env.MOCK_DO.get(id);
     return stub.fetch(req);

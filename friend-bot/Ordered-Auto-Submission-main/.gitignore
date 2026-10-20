@@ -1,0 +1,32 @@
+# Environment & sensitive credentials
+.env
+*.env
+.env.*
+!.env.example
+
+# Authentication sessions & tokens
+session*.json
+*.session
+cookies*.json
+
+# Execution logs
+*.log
+submissions.log
+
+# Python cache & virtual environment
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pytest_cache/
+
+# Assignment PDF uploads (keep directory structure via .gitkeep)
+*.pdf
+
+# IDEs & Operating System files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

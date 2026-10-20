@@ -284,7 +284,12 @@ describe('SO Practical Schedule Mapping', () => {
 
 import { vi } from 'vitest';
 import { sampleServerOffset, warmUpConnection } from '../src/time';
-import { checkAssignmentLock, submitAssignment, buildStaticSubmissionPrefix } from '../src/moodle/submit';
+import {
+  checkAssignmentLock,
+  checkAssignmentLockWave,
+  submitAssignment,
+  buildStaticSubmissionPrefix,
+} from '../src/moodle/submit';
 
 describe('Clock Sync & Pure Submit Timing', () => {
   it('should detect HTTP Date second boundary without ±500ms midpoint skew', async () => {
@@ -423,6 +428,47 @@ describe('Clock Sync & Pure Submit Timing', () => {
       const rtt = await warmUpConnection(jar, bud, 'https://hebat.elearning.unair.ac.id');
       expect(48 - bud.remaining).toBe(1);
       expect(rtt).toBeGreaterThanOrEqual(20);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('should resolve checkAssignmentLockWave immediately when Shot #2 catches unlock even if Shot #1 arrived early and is slow', async () => {
+    const formHtml = readFixture('editsubmission.html');
+    let shotIndex = 0;
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      const myShot = ++shotIndex;
+      if (myShot === 1) {
+        // Shot #1 arrived 10ms early (locked) and takes 250ms to return
+        await new Promise(r => setTimeout(r, 250));
+        return new Response(null, {
+          status: 303,
+          headers: { location: 'https://hebat.elearning.unair.ac.id/course/view.php?id=10978' },
+        });
+      }
+      // Shot #2 (launched at +35ms) arrives after 07:00:00.000 (unlocked!) and finishes in 40ms
+      await new Promise(r => setTimeout(r, 40));
+      return new Response(formHtml, { status: 200 });
+    });
+
+    try {
+      const jar = new CookieJar();
+      const bud = new Budget(48);
+      const t0 = Date.now();
+      const res = await checkAssignmentLockWave(
+        jar,
+        bud,
+        'https://hebat.elearning.unair.ac.id',
+        '167430',
+        [0, 35, 90]
+      );
+      const elapsed = Date.now() - t0;
+
+      expect(res.isLocked).toBe(false);
+      expect(res.formFields?.sesskey).toBe('testSesskey987654321');
+      // Resolved at ~75ms (35ms stagger + 40ms RTT) instead of waiting 250ms for Shot #1 + 40ms for Shot #2 (290ms)!
+      expect(elapsed).toBeLessThan(160);
     } finally {
       fetchSpy.mockRestore();
     }

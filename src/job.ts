@@ -11,6 +11,7 @@ import { uploadDraftFile } from './moodle/upload';
 import {
   buildStaticSubmissionPrefix,
   checkAssignmentLock,
+  checkAssignmentLockWave,
   fetchSubmissionForm,
   submitAssignment,
 } from './moodle/submit';
@@ -918,7 +919,8 @@ export class SubmitJob extends DurableObject<Env> {
       preBuiltPrefix
     );
     const tSubmitElapsed = dryRun ? Math.max(1, Date.now() - tSubmitStart) : submitRes.tPostMs;
-    const tTotalPipelineMs = Math.max(tSubmitElapsed, Date.now() - tPipeline0);
+    const tPostDoneAt = submitRes.tPostDoneAt || Date.now();
+    const tTotalPipelineMs = Math.max(tSubmitElapsed, tPostDoneAt - tPipeline0);
 
     const lastResult: LastResult = {
       status: dryRun ? 'DRY_RUN' : submitRes.ok ? 'SUCCESS' : 'FAILED',
@@ -1105,22 +1107,27 @@ export class SubmitJob extends DurableObject<Env> {
       await this.appendLog('INFO', `Alarm B re-calibrated Hebat Unair server clock offset: ${offset} ms`);
     }
 
-    // 1. TCP/TLS Keep-Alive Warm-Up at T - 1500ms so the socket is hot at 07:00:00.000
+    // Persist POLLING phase BEFORE entering the T - 1.2s hot window so ZERO SQLite disk I/O occurs during the race!
+    await this.setPhase('POLLING');
+
+    // 1. TCP/TLS Keep-Alive & Endpoint Warm-Up at T - 1200ms so the socket & Moodle route are hot at 07:00:00.000
     let rttMs = 80;
-    if (nextUnlockAt - (Date.now() + offset) > 1600) {
-      await sleepUntil(nextUnlockAt - 1500, offset);
-      rttMs = await warmUpConnection(jar, bud, baseUrl);
-      await this.appendLog('INFO', `TCP/TLS warm-up completed at T-1.5s (measured RTT: ${rttMs} ms)`);
+    let didWarmUp = false;
+    if (nextUnlockAt - (Date.now() + offset) > 1350) {
+      await sleepUntil(nextUnlockAt - 1200, offset);
+      rttMs = await warmUpConnection(jar, bud, baseUrl, `/mod/assign/view.php?id=${assignment.cmid}`);
+      didWarmUp = true;
     }
 
-    // 2. Pre-Arrival Timing: launch first poll at T - (RTT / 2) so packet lands at Moodle right after 07:00:00.000
-    const oneWayMs = Math.min(120, Math.max(15, Math.round(rttMs / 2)));
+    // 2. Pre-Arrival Timing: launch first wave shot at T - (RTT * 0.45) so packet lands right at 07:00:00.000
+    const oneWayMs = Math.min(90, Math.max(12, Math.round(rttMs * 0.45)));
     const targetPollStartMs = nextUnlockAt - oneWayMs;
     await sleepUntil(targetPollStartMs, offset);
 
-    await this.setPhase('POLLING');
     let unlocked = false;
     let unlockedFormFields = null;
+    let isFirstWave = true;
+    let totalPollProbes = 0;
     const pollStart = Date.now();
     const maxPollDurationMs = 120 * 1000; // max 120 seconds
 
@@ -1132,7 +1139,13 @@ export class SubmitJob extends DurableObject<Env> {
         return;
       }
 
-      const lockRes = await checkAssignmentLock(jar, bud, baseUrl, assignment.cmid);
+      // First iteration across 07:00:00.000 boundary uses Staggered Hedged Wave ([0, 35, 75] ms)
+      // so an early Shot #1 (arriving at 06:59:59.990) never blocks Shot #2/#3 from catching 07:00:00.025!
+      const lockRes = isFirstWave
+        ? await checkAssignmentLockWave(jar, bud, baseUrl, assignment.cmid, [0, 35, 75])
+        : await checkAssignmentLock(jar, bud, baseUrl, assignment.cmid);
+      isFirstWave = false;
+      totalPollProbes += lockRes.probesUsed || 1;
 
       // Auto-relogin if session expired
       if (lockRes.sessionExpired && creds.user && creds.pass) {
@@ -1170,17 +1183,13 @@ export class SubmitJob extends DurableObject<Env> {
       return;
     }
 
-    // Step: Form Submit (reuses formFields if already parsed during unlock poll, otherwise fetches with retry)
-    await this.setPhase('SUBMITTING');
-    const tPipeline0 = Date.now();
-
+    // Step: Form Submit (ZERO SQLite I/O before POST! Reuses formFields parsed during unlock poll)
     let formFields = unlockedFormFields;
     if (!formFields) {
       for (let attempt = 1; attempt <= 3; attempt++) {
         formFields = await fetchSubmissionForm(jar, bud, baseUrl, assignment.cmid);
         if (formFields) break;
-        await this.appendLog('WARN', `Fetch form attempt ${attempt} returned null (possible 502/spike), retrying in 400ms...`);
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 250));
       }
     }
 
@@ -1205,7 +1214,16 @@ export class SubmitJob extends DurableObject<Env> {
     );
 
     const tSubmitElapsed = dryRun ? Math.max(1, Date.now() - tSubmit0) : submitRes.tPostMs;
-    const tTotalPipelineMs = Math.max(tSubmitElapsed, Date.now() - tPipeline0);
+    const tPostDoneAt = submitRes.tPostDoneAt || Date.now();
+    // True wall-clock race duration from unlock poll start until POST savesubmission finishes (excluding post-submit verification GET)
+    const tTotalPipelineMs = Math.max(tSubmitElapsed, tPostDoneAt - pollStart);
+
+    if (didWarmUp) {
+      await this.appendLog(
+        'INFO',
+        `Race telemetry: warm-up RTT=${rttMs}ms, probes=${totalPollProbes}, tPost=${tSubmitElapsed}ms, tRaceTotal=${tTotalPipelineMs}ms, tVerify=${submitRes.tVerifyMs}ms`
+      );
+    }
 
     const lastResult: LastResult = {
       status: dryRun ? 'DRY_RUN' : submitRes.ok ? 'SUCCESS' : 'FAILED',

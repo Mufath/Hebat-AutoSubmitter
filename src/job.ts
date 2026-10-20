@@ -14,6 +14,8 @@ import {
   checkAssignmentLockWave,
   fetchSubmissionForm,
   submitAssignment,
+  tryDirectSubmitOnUnlock,
+  type SubmitResult,
 } from './moodle/submit';
 import { getNextWednesdayUnlockUtc, sampleServerOffset, sleepUntil, warmUpConnection } from './time';
 import { Logger, LogEntry } from './log';
@@ -26,6 +28,8 @@ import {
   parseAssignments,
   parseAssignmentsOverview,
   parseEnrolledCourses,
+  parseSesskey,
+  parseUserId,
 } from './moodle/parse';
 
 export type JobPhase =
@@ -1049,6 +1053,10 @@ export class SubmitJob extends DurableObject<Env> {
 
     await this.ctx.storage.put('draft', { itemId: uploadRes.itemid, createdAt: Date.now() });
     await this.ctx.storage.put('moodle_cookies', jar.dump());
+    await this.ctx.storage.put('moodle_session_meta', {
+      sesskey: discRes.sesskey || loginRes.sesskey,
+      userId: discRes.userId || loginRes.userId || '',
+    });
 
     // 4. Sample server clock offset
     const offset = await sampleServerOffset(jar, bud, baseUrl);
@@ -1094,6 +1102,7 @@ export class SubmitJob extends DurableObject<Env> {
     }
 
     const savedCookies = (await this.ctx.storage.get<Record<string, string>>('moodle_cookies')) || {};
+    let sessionMeta = await this.ctx.storage.get<{ sesskey: string; userId: string }>('moodle_session_meta');
     const jar = CookieJar.load(savedCookies);
     const bud = new Budget(48);
 
@@ -1105,6 +1114,22 @@ export class SubmitJob extends DurableObject<Env> {
       offset = await sampleServerOffset(jar, bud, baseUrl);
       await this.ctx.storage.put('serverOffsetMs', offset);
       await this.appendLog('INFO', `Alarm B re-calibrated Hebat Unair server clock offset: ${offset} ms`);
+    }
+
+    // Ensure sessionMeta (sesskey + userId) is ready at T-30s for Zero-GET Direct POST on locked assignments
+    if ((!sessionMeta?.sesskey || !sessionMeta?.userId) && nextUnlockAt - (Date.now() + offset) > 3500 && bud.remaining > 30) {
+      try {
+        const myPage = await mfetch(jar, bud, `${baseUrl}/my/`);
+        const myHtml = await myPage.res.text();
+        const sk = parseSesskey(myHtml);
+        const uid = parseUserId(myHtml);
+        if (sk && uid) {
+          sessionMeta = { sesskey: sk, userId: uid };
+          await this.ctx.storage.put('moodle_session_meta', sessionMeta);
+        }
+      } catch {
+        // Non-blocking fallback
+      }
     }
 
     // Persist POLLING phase BEFORE entering the T - 1.2s hot window so ZERO SQLite disk I/O occurs during the race!
@@ -1129,6 +1154,11 @@ export class SubmitJob extends DurableObject<Env> {
         const reloginRes = await loginMoodle(jar, bud, baseUrl, creds.user, creds.pass);
         if (reloginRes.ok) {
           await this.ctx.storage.put('moodle_cookies', jar.dump());
+          sessionMeta = {
+            sesskey: reloginRes.sesskey,
+            userId: reloginRes.userId || sessionMeta?.userId || '',
+          };
+          await this.ctx.storage.put('moodle_session_meta', sessionMeta);
         }
       } else if (!warmRes.isLocked && warmRes.formFields) {
         unlocked = true;
@@ -1146,6 +1176,8 @@ export class SubmitJob extends DurableObject<Env> {
 
     let isFirstWave = true;
     let totalPollProbes = 0;
+    let directPostAttempts = 0;
+    let directSubmitRes: SubmitResult | null = null;
     const pollStart = Date.now();
     const maxPollDurationMs = 120 * 1000; // max 120 seconds
 
@@ -1157,8 +1189,54 @@ export class SubmitJob extends DurableObject<Env> {
         return;
       }
 
-      // First iteration across 07:00:00.000 boundary uses Staggered Hedged Wave ([0, 35, 75] ms)
-      // so an early Shot #1 (arriving at 06:59:59.990) never blocks Shot #2/#3 from catching 07:00:00.025!
+      // Zero-GET Direct POST Strike (for locked assignments when we already know sesskey + userId from Alarm A):
+      // Fires POST savesubmission directly across 07:00:00.000 so locked assignments also complete in 1 HTTP step (~240ms)
+      // without waiting for a prior GET editsubmission (~300ms)!
+      if (!dryRun && sessionMeta?.sesskey && sessionMeta?.userId && directPostAttempts < 2) {
+        directPostAttempts++;
+        totalPollProbes++;
+        const nowServerSec = Math.floor((Date.now() + offset) / 1000) + 2;
+        const directRes = await tryDirectSubmitOnUnlock(
+          jar,
+          bud,
+          baseUrl,
+          assignment.cmid,
+          draft.itemId,
+          sessionMeta.sesskey,
+          sessionMeta.userId,
+          nowServerSec,
+          preBuiltPrefix
+        );
+
+        if (directRes.state === 'SUBMITTED' && directRes.submitResult) {
+          unlocked = true;
+          directSubmitRes = directRes.submitResult;
+          break;
+        }
+        if (directRes.state === 'NEEDS_FORM') {
+          unlocked = true;
+          unlockedFormFields = directRes.formFields || null;
+          break;
+        }
+        if (directRes.state === 'SESSION_EXPIRED' && creds.user && creds.pass) {
+          const reloginRes = await loginMoodle(jar, bud, baseUrl, creds.user, creds.pass);
+          if (reloginRes.ok) {
+            await this.ctx.storage.put('moodle_cookies', jar.dump());
+            sessionMeta = {
+              sesskey: reloginRes.sesskey,
+              userId: reloginRes.userId || sessionMeta?.userId || '',
+            };
+          }
+          continue;
+        }
+        // If still LOCKED on first direct POST attempt, sleep 15ms and try once more or fall into Wave Poll
+        if (directPostAttempts < 2) {
+          await new Promise(r => setTimeout(r, 15));
+          continue;
+        }
+      }
+
+      // Staggered Hedged Wave ([0, 35, 75] ms) on first GET poll wave so an early Shot #1 never blocks Shot #2/#3!
       const lockRes = isFirstWave
         ? await checkAssignmentLockWave(jar, bud, baseUrl, assignment.cmid, [0, 35, 75])
         : await checkAssignmentLock(jar, bud, baseUrl, assignment.cmid);
@@ -1201,35 +1279,42 @@ export class SubmitJob extends DurableObject<Env> {
       return;
     }
 
-    // Step: Form Submit (ZERO SQLite I/O before POST! Reuses formFields parsed during unlock poll)
-    let formFields = unlockedFormFields;
-    if (!formFields) {
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        formFields = await fetchSubmissionForm(jar, bud, baseUrl, assignment.cmid);
-        if (formFields) break;
-        await new Promise(r => setTimeout(r, 250));
-      }
-    }
-
-    if (!formFields) {
-      await this.appendLog('ERROR', 'Failed to parse submission form fields after 3 attempts');
-      await this.recordAudit('SUBMIT', 'FAILED', { error: 'Gagal parse form' });
-      await this.notifyDual(`❌ <b>Pengumpulan Gagal!</b>\nForm submission tugas "${assignment.name}" gagal diambil.`);
-      await this.setPhase('FAILED');
-      return;
-    }
-
+    let submitRes: SubmitResult;
     const tSubmit0 = Date.now();
-    const submitRes = await submitAssignment(
-      jar,
-      bud,
-      baseUrl,
-      assignment.cmid,
-      formFields,
-      draft.itemId,
-      dryRun,
-      preBuiltPrefix
-    );
+
+    if (directSubmitRes) {
+      // Zero-GET Direct POST already saved and verified the submission in 1 step!
+      submitRes = directSubmitRes;
+    } else {
+      // Step: Form Submit (ZERO SQLite I/O before POST! Reuses formFields parsed during unlock poll)
+      let formFields = unlockedFormFields;
+      if (!formFields) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          formFields = await fetchSubmissionForm(jar, bud, baseUrl, assignment.cmid);
+          if (formFields) break;
+          await new Promise(r => setTimeout(r, 250));
+        }
+      }
+
+      if (!formFields) {
+        await this.appendLog('ERROR', 'Failed to parse submission form fields after 3 attempts');
+        await this.recordAudit('SUBMIT', 'FAILED', { error: 'Gagal parse form' });
+        await this.notifyDual(`❌ <b>Pengumpulan Gagal!</b>\nForm submission tugas "${assignment.name}" gagal diambil.`);
+        await this.setPhase('FAILED');
+        return;
+      }
+
+      submitRes = await submitAssignment(
+        jar,
+        bud,
+        baseUrl,
+        assignment.cmid,
+        formFields,
+        draft.itemId,
+        dryRun,
+        preBuiltPrefix
+      );
+    }
 
     const tSubmitElapsed = dryRun ? Math.max(1, Date.now() - tSubmit0) : submitRes.tPostMs;
     const tPostDoneAt = submitRes.tPostDoneAt || Date.now();
@@ -1256,8 +1341,16 @@ export class SubmitJob extends DurableObject<Env> {
     await this.ctx.storage.put('lastResult', lastResult);
     await this.setPhase(submitRes.ok || dryRun ? 'DONE' : 'FAILED');
 
+    const execModeLabel =
+      totalPollProbes === 0
+        ? 'Pre-Staged 1-Step (Tugas Sudah Terbuka)'
+        : directSubmitRes
+        ? `Zero-GET Direct POST (${directPostAttempts}x tembak)`
+        : `Staggered Wave Poll (${totalPollProbes} probe)`;
+
     await this.recordAudit('SUBMIT', dryRun ? 'DRY_RUN' : submitRes.ok ? 'SUCCESS' : 'FAILED', {
       assignment: assignment.name,
+      mode: execModeLabel,
       elapsedMs: tSubmitElapsed,
       totalPipelineMs: tTotalPipelineMs,
       statusText: submitRes.status.statusText,
@@ -1265,7 +1358,7 @@ export class SubmitJob extends DurableObject<Env> {
 
     // Notify Telegram (Dual dispatch)
     await this.notifyDual(
-      `✅ <b>SubSecond ${dryRun ? '[DRY RUN] ' : ''}Sukses!</b>\nTugas: ${assignment.name}\nDurasi kirim (POST): ${tSubmitElapsed} ms\nTotal siklus: ${tTotalPipelineMs} ms\nStatus: ${submitRes.status.statusText}`
+      `✅ <b>SubSecond ${dryRun ? '[DRY RUN] ' : ''}Sukses!</b>\nTugas: ${assignment.name}\nMode: ${execModeLabel}\nDurasi kirim (POST): ${tSubmitElapsed} ms\nTotal siklus (sejak T=0): ${tTotalPipelineMs} ms\nStatus: ${submitRes.status.statusText}`
     );
 
     // Auto-weekly rescheduling (only if autoWeekly and not custom schedule)

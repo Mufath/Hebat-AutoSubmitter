@@ -4,12 +4,14 @@
  */
 
 import { CookieJar, Budget, mfetch } from './http';
-import { parseAssignments, parseCourseContextId } from './parse';
+import { parseAssignments, parseCourseContextId, parseSesskey, parseUserId } from './parse';
 import type { DiscoveredAssignment } from './types';
 
 export interface DiscoverResult {
   assignment: DiscoveredAssignment | null;
   courseContextId: string | null;
+  userId?: string | null;
+  sesskey?: string | null;
   allAssignments: DiscoveredAssignment[];
 }
 
@@ -26,6 +28,8 @@ export async function discoverAssignment(
   const coursePage = await mfetch(jar, bud, `${baseUrl}/course/view.php?id=${courseId}`);
   const html = await coursePage.res.text();
   const courseContextId = parseCourseContextId(html);
+  const userId = parseUserId(html);
+  const sesskey = parseSesskey(html);
 
   const allAssignments = parseAssignments(html);
 
@@ -66,6 +70,8 @@ export async function discoverAssignment(
   return {
     assignment: matched,
     courseContextId,
+    userId,
+    sesskey,
     allAssignments,
   };
 }

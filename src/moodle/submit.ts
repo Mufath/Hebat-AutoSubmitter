@@ -286,3 +286,122 @@ export async function submitAssignment(
     tPostDoneAt,
   };
 }
+
+export interface DirectUnlockPostResult {
+  state: 'SUBMITTED' | 'LOCKED' | 'SESSION_EXPIRED' | 'NEEDS_FORM';
+  tPostMs: number;
+  submitResult?: SubmitResult;
+  formFields?: SubmissionFormFields | null;
+}
+
+/**
+ * Zero-GET Direct POST savesubmission for locked assignments right at 07:00:00.000.
+ * Uses pre-captured `sesskey` and `userid` from Alarm A + server timestamp `lastmodified`
+ * so the submission is saved in 1 single HTTP round-trip (~240ms) without needing a prior
+ * GET editsubmission (~300ms). Safely detects if still locked (303 -> /course/view.php or 403)
+ * or if the assignment requires extra form fields (200 OK form HTML).
+ */
+export async function tryDirectSubmitOnUnlock(
+  jar: CookieJar,
+  bud: Budget,
+  baseUrl: string,
+  cmid: string,
+  draftItemId: number,
+  sesskey: string,
+  userid: string,
+  lastmodifiedSec: number,
+  preBuiltPrefix?: string
+): Promise<DirectUnlockPostResult> {
+  const prefix = preBuiltPrefix || buildStaticSubmissionPrefix(cmid, draftItemId);
+  const bodyStr =
+    `${prefix}` +
+    `&lastmodified=${encodeURIComponent(String(lastmodifiedSec))}` +
+    `&userid=${encodeURIComponent(userid)}` +
+    `&sesskey=${encodeURIComponent(sesskey)}` +
+    `&submissionstatement=1`;
+
+  const tPost0 = Date.now();
+  const postRes = await mfetch(
+    jar,
+    bud,
+    `${baseUrl}/mod/assign/view.php`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        connection: 'keep-alive',
+      },
+      body: bodyStr,
+    },
+    0
+  );
+  const tPostDoneAt = Date.now();
+  const tPostMs = Math.max(1, postRes.elapsedMs || (tPostDoneAt - tPost0));
+
+  if (postRes.url.includes('/login/')) {
+    return { state: 'SESSION_EXPIRED', tPostMs };
+  }
+
+  // If Moodle redirected to /course/view.php or returned 403, the assignment is still locked at this millisecond
+  if (postRes.url.includes('/course/view.php') || postRes.res.status === 403) {
+    return { state: 'LOCKED', tPostMs };
+  }
+
+  // If Moodle returned 200 OK directly, check if it's already submitted or if it rendered the editsubmission form
+  if (postRes.res.status === 200) {
+    const html = await postRes.res.text();
+    if (html.includes('Available from') || html.includes('Dibuka mulai')) {
+      return { state: 'LOCKED', tPostMs };
+    }
+    const parsedStatus = parseSubmissionStatus(html);
+    if (parsedStatus.isSubmitted) {
+      return {
+        state: 'SUBMITTED',
+        tPostMs,
+        submitResult: {
+          ok: true,
+          dryRun: false,
+          status: parsedStatus,
+          tPostMs,
+          tVerifyMs: 0,
+          tPostDoneAt,
+        },
+      };
+    }
+    const formFields = parseEditSubmissionForm(html);
+    return { state: 'NEEDS_FORM', tPostMs, formFields };
+  }
+
+  // Moodle returned 302/303 redirect to /mod/assign/view.php?id=<cmid> -> verify submission status
+  const tVerify0 = Date.now();
+  const verifyUrl =
+    postRes.res.status >= 300 && postRes.res.status < 400 && postRes.url
+      ? postRes.url
+      : `${baseUrl}/mod/assign/view.php?id=${cmid}`;
+  const viewRes = await mfetch(jar, bud, verifyUrl);
+  const viewHtml = await viewRes.res.text();
+  const tVerifyMs = Math.max(0, Date.now() - tVerify0);
+
+  if (viewRes.url.includes('/course/view.php')) {
+    return { state: 'LOCKED', tPostMs };
+  }
+
+  const status = parseSubmissionStatus(viewHtml);
+  if (status.isSubmitted) {
+    return {
+      state: 'SUBMITTED',
+      tPostMs,
+      submitResult: {
+        ok: true,
+        dryRun: false,
+        status,
+        tPostMs,
+        tVerifyMs,
+        tPostDoneAt,
+      },
+    };
+  }
+
+  const formFields = parseEditSubmissionForm(viewHtml);
+  return { state: 'NEEDS_FORM', tPostMs, formFields };
+}

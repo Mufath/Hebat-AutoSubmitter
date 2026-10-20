@@ -288,6 +288,7 @@ import {
   checkAssignmentLock,
   checkAssignmentLockWave,
   submitAssignment,
+  tryDirectSubmitOnUnlock,
   buildStaticSubmissionPrefix,
 } from '../src/moodle/submit';
 
@@ -469,6 +470,72 @@ describe('Clock Sync & Pure Submit Timing', () => {
       expect(res.formFields?.sesskey).toBe('testSesskey987654321');
       // Resolved at ~75ms (35ms stagger + 40ms RTT) instead of waiting 250ms for Shot #1 + 40ms for Shot #2 (290ms)!
       expect(elapsed).toBeLessThan(160);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('should execute Zero-GET Direct POST (tryDirectSubmitOnUnlock) for locked assignments in 1 POST round-trip once unlocked', async () => {
+    const submittedHtml = readFixture('assign_view_submitted.html');
+    const preBuiltPrefix = buildStaticSubmissionPrefix('167430', 505205942);
+    let isLocked = true;
+    let postBody = '';
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      if (init?.method === 'POST') {
+        postBody = String(init.body || '');
+        if (isLocked) {
+          return new Response(null, {
+            status: 303,
+            headers: { location: 'https://hebat.elearning.unair.ac.id/course/view.php?id=10978' },
+          });
+        }
+        return new Response(null, {
+          status: 303,
+          headers: { location: 'https://hebat.elearning.unair.ac.id/mod/assign/view.php?id=167430' },
+        });
+      }
+      return new Response(submittedHtml, { status: 200 });
+    });
+
+    try {
+      const jar = new CookieJar();
+      const bud = new Budget(48);
+
+      // 1. If packet arrives 5ms early (still locked), detects LOCKED in 1 subrequest without corrupting draft
+      const earlyRes = await tryDirectSubmitOnUnlock(
+        jar,
+        bud,
+        'https://hebat.elearning.unair.ac.id',
+        '167430',
+        505205942,
+        'testSesskey987654321',
+        '12345',
+        1792512000,
+        preBuiltPrefix
+      );
+      expect(earlyRes.state).toBe('LOCKED');
+      expect(48 - bud.remaining).toBe(1);
+
+      // 2. Once unlocked at 07:00:00.000, saves submission in 1 direct POST without needing GET editsubmission!
+      isLocked = false;
+      const winRes = await tryDirectSubmitOnUnlock(
+        jar,
+        bud,
+        'https://hebat.elearning.unair.ac.id',
+        '167430',
+        505205942,
+        'testSesskey987654321',
+        '12345',
+        1792512002,
+        preBuiltPrefix
+      );
+      expect(winRes.state).toBe('SUBMITTED');
+      expect(winRes.submitResult?.ok).toBe(true);
+      expect(postBody).toContain('action=savesubmission');
+      expect(postBody).toContain('files_filemanager=505205942');
+      expect(postBody).toContain('userid=12345');
+      expect(postBody).toContain('sesskey=testSesskey987654321');
     } finally {
       fetchSpy.mockRestore();
     }

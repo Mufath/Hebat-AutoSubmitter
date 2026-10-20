@@ -1109,9 +1109,9 @@ export class SubmitJob extends DurableObject<Env> {
     // Pre-build static URL-encoded payload template before unlock so 0ms CPU is spent assembling static fields at T=0
     const preBuiltPrefix = buildStaticSubmissionPrefix(assignment.cmid, draft.itemId);
 
-    // Re-calibrate server clock offset right at T-30s using Second-Boundary Detection if we have >4s before unlock
+    // Re-calibrate server clock offset right at T-30s using tight 65ms Second-Boundary Detection if we have >4s before unlock
     if (nextUnlockAt - (Date.now() + offset) > 4000 && bud.remaining > 35) {
-      offset = await sampleServerOffset(jar, bud, baseUrl);
+      offset = await sampleServerOffset(jar, bud, baseUrl, 12, 65);
       await this.ctx.storage.put('serverOffsetMs', offset);
       await this.appendLog('INFO', `Alarm B re-calibrated Hebat Unair server clock offset: ${offset} ms`);
     }
@@ -1135,38 +1135,17 @@ export class SubmitJob extends DurableObject<Env> {
     // Persist POLLING phase BEFORE entering the T - 1.2s hot window so ZERO SQLite disk I/O occurs during the race!
     await this.setPhase('POLLING');
 
-    // 1. TCP/TLS Keep-Alive & Pre-Staging Warm-Up at T - 1500ms:
-    // Probes checkAssignmentLock on /mod/assign/view.php?id=<cmid>&action=editsubmission.
-    // - If locked: returns 303 in 1 subrequest, warming the exact MoodleSession & TLS socket and measuring RTT.
-    // - If already unlocked: pre-stages formFields in RAM so at T=0 we fire POST savesubmission directly in 1 step (0 GETs at T=0)!
+    // 1. TCP/TLS Keep-Alive & Endpoint Warm-Up at T - 1200ms:
+    // Sends a lightweight HEAD request to /mod/assign/view.php?id=<cmid> so the TLS socket & Moodle session are hot,
+    // and at T=0 we immediately fire Zero-GET Direct POST (tryDirectSubmitOnUnlock) in 1 single round-trip!
     let rttMs = 80;
     let didWarmUp = false;
     let unlocked = false;
     let unlockedFormFields = null;
-    if (nextUnlockAt - (Date.now() + offset) > 1650) {
-      await sleepUntil(nextUnlockAt - 1500, offset);
-      const tWarm0 = Date.now();
-      const warmRes = await checkAssignmentLock(jar, bud, baseUrl, assignment.cmid);
-      rttMs = Math.min(400, Math.max(10, Date.now() - tWarm0));
+    if (nextUnlockAt - (Date.now() + offset) > 1350) {
+      await sleepUntil(nextUnlockAt - 1200, offset);
+      rttMs = await warmUpConnection(jar, bud, baseUrl, `/mod/assign/view.php?id=${assignment.cmid}`);
       didWarmUp = true;
-
-      if (warmRes.sessionExpired && creds.user && creds.pass) {
-        const reloginRes = await loginMoodle(jar, bud, baseUrl, creds.user, creds.pass);
-        if (reloginRes.ok) {
-          await this.ctx.storage.put('moodle_cookies', jar.dump());
-          sessionMeta = {
-            sesskey: reloginRes.sesskey,
-            userId: reloginRes.userId || sessionMeta?.userId || '',
-          };
-          await this.ctx.storage.put('moodle_session_meta', sessionMeta);
-        }
-      } else if (!warmRes.isLocked && warmRes.formFields) {
-        unlocked = true;
-        unlockedFormFields = warmRes.formFields;
-      } else if (bud.remaining > 20) {
-        // Re-warm socket after 303 redirect just in case
-        rttMs = await warmUpConnection(jar, bud, baseUrl, `/mod/assign/view.php?id=${assignment.cmid}`);
-      }
     }
 
     // 2. Pre-Arrival Timing: launch first wave shot at T - (RTT * 0.45) so packet lands right at 07:00:00.000

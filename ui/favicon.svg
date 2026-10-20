@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A84FF"/>
+      <stop offset="100%" stop-color="#0056D2"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E2F1FF"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#001B44" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- App Squircle Base -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bgGrad)"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="none" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="1"/>
+
+  <!-- Stopwatch Top Crown -->
+  <path d="M28.5 6.5h7a1.5 1.5 0 0 1 1.5 1.5v1h-10v-1a1.5 1.5 0 0 1 1.5-1.5z" fill="#FFFFFF" fill-opacity="0.9"/>
+  <rect x="30.5" y="9" width="3" height="3" fill="#FFFFFF" fill-opacity="0.9"/>
+
+  <!-- Precision Stopwatch Outer Dial Arc -->
+  <circle cx="32" cy="35" r="18" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="86 28"/>
+
+  <!-- Precision Tick Marks -->
+  <circle cx="32" cy="19.5" r="1.2" fill="#FFFFFF" fill-opacity="0.9"/>
+  <circle cx="47" cy="35" r="1.2" fill="#FFFFFF" fill-opacity="0.9"/>
+  <circle cx="17" cy="35" r="1.2" fill="#FFFFFF" fill-opacity="0.9"/>
+
+  <!-- High-Precision Lightning Bolt / Speed Glyph in Center -->
+  <path d="M34.5 18 L23.5 35 H32 L28 49 L42.5 32 H34 L37 18 Z" 
+        fill="url(#glowGrad)" 
+        stroke="#FFFFFF" 
+        stroke-width="0.8" 
+        stroke-linejoin="round" 
+        filter="url(#shadow)"/>
+</svg>

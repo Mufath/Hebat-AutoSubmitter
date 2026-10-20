@@ -4,6 +4,9 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
   <title>SubSecond</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg"/>
+  <link rel="alternate icon" href="favicon.ico"/>
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css"/>
 </head>
@@ -39,7 +42,8 @@
   <div id="login-modal" class="modal-overlay">
     <div class="modal-box">
       <div class="header-brand" style="margin-bottom: 8px;">
-        <span class="system-name">SubSecond</span>
+        <img src="favicon.svg" alt="SubSecond" class="brand-logo" width="32" height="32" style="border-radius: 8px; vertical-align: middle; margin-right: 8px; display: inline-block;">
+        <span class="system-name" style="vertical-align: middle;">SubSecond</span>
       </div>
       <p class="footnote" style="margin-bottom: 16px;">Masuk dengan akun Cybercampus / Hebat Unair Anda.</p>
       <form id="login-form">
@@ -65,7 +69,10 @@
     <header class="app-header">
       <div class="header-inner">
         <div class="header-left">
-          <span class="system-name">SubSecond</span>
+          <div class="brand-title-wrap" style="display: flex; align-items: center; gap: 8px;">
+            <img src="favicon.svg" alt="SubSecond" class="brand-logo" width="24" height="24" style="border-radius: 6px; flex-shrink: 0; display: block;">
+            <span class="system-name">SubSecond</span>
+          </div>
           <span id="user-nim-pill" class="user-nim-pill mono">NIM: --</span>
         </div>
         <!-- Header Status & Ping Indicator -->

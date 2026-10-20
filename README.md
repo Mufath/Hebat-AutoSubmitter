@@ -9,11 +9,13 @@ UI dirancang dengan estetika minimalis Apple-native, responsif untuk ponsel/desk
 ## 🌟 Fitur Utama
 
 - **Zero-Browser Headless Engine:** 100% menggunakan HTTP native protocol (`fetch`), tanpa Chromium/Playwright yang boros RAM dan lambat dibuka.
+- **Zero-GET Direct POST Strike:** Menembus pengumpulan tugas dalam **1 langkah tunggal HTTP (~240–300 ms)** tanpa perlu mengunduh form `editsubmission` terlebih dahulu saat jam buka tugas tiba.
 - **Pre-Unlock Draft Upload:** Berkas PDF diunggah ke draft area Hebat Unair 10 menit sebelum tugas dibuka (*T-10m*). Saat jam 07:00:00 WIB tiba, sistem tinggal menautkan ID draft dalam hitungan milidetik!
-- **Latensi Sub-Detik (Two-Gear Polling + TCP Warm-Up):** Dilengkapi *HTTP Second-Boundary Clock Sync*, pemanasan koneksi TCP/TLS di *T-1.5s*, *Pre-Arrival Timing (T - RTT/2)*, dan *Two-Gear Polling*.
+- **Staggered Hedged Wave Polling:** Melepaskan gelombang mikro (*[0, 35, 75] ms*) di batas jam buka untuk mengeliminasi *Early-Poll Penalty* jika jam server Hebat Unair bergeser tipis.
+- **Latensi Sub-Detik Ekstrem (~250 ms):** Dilengkapi *HTTP Second-Boundary Clock Sync (akurasi rapat 65 ms)*, pemanasan koneksi TCP/TLS endpoint-spesifik di *T-1.2s*, dan *Zero-Disk-I/O* selama jendela pacu.
 - **100% Bebas Biaya (Cloudflare Free Tier):** Berjalan di Cloudflare Workers Free (CPU < 10 ms per eksekusi, Durable Object SQLite terisolasi per NIM, subrequest ≤ 50).
 - **Keamanan Terisolasi:** Setiap pengguna memiliki instance ruang kerja mandiri. Password dan cookie tidak pernah dicatat dalam log.
-- **Notifikasi Telegram Otomatis:** Pemberitahuan berkala saat persiapan draft berhasil dan saat tugas selesai dikumpulkan beserta durasi kirim murni (`POST`) dan total siklus.
+- **Notifikasi Telegram & Mode Telemetri:** Pemberitahuan berkala dengan rincian mode eksekusi (`Zero-GET Direct POST`, `Pre-Staged`, atau `Wave Poll`), durasi kirim murni (`POST`), dan total siklus milidetik yang transparan.
 
 ---
 
@@ -86,9 +88,10 @@ Buka URL tersebut di browser ponsel atau laptop, login dengan NIM & Password Cyb
 
 2. **Rabu Pagi (Hari-H):**
    - Anda tidak perlu membuka laptop saat jam 07:00:00 WIB.
-   - Pada pukul **06:50 WIB**, sistem secara otomatis bangun dan menyiapkan draft di server Hebat Unair.
-   - Pada pukul **07:00:00 WIB**, sistem melakukan polling kilat dan mengumpulkan tugas dalam < 1 detik.
-   - Notifikasi sukses akan langsung dikirimkan ke Telegram Anda.
+   - Pada pukul **06:50 WIB (T-10m)**, sistem secara otomatis bangun, menyiapkan draft di server Hebat Unair, dan mengunci parameter otentikasi.
+   - Pada pukul **06:59:58.800 WIB (T-1.2s)**, sistem memanaskan rute TCP/TLS dan sesi Moodle.
+   - Pada pukul **07:00:00.000 WIB**, sistem mengeksekusi **Zero-GET Direct POST Strike** dan menyelesaikan pengumpulan dalam **~240–300 ms**.
+   - Notifikasi sukses beserta rincian mode eksekusi akan langsung dikirimkan ke Telegram Anda.
 
 ---
 

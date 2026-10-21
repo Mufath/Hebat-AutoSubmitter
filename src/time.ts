@@ -92,10 +92,12 @@ export async function sampleServerOffset(
               firstServerSecMs = serverMs;
             } else if (serverMs > firstServerSecMs && prevMidMs !== null) {
               // Second boundary crossed! The server clock ticked to `serverMs` between prevMidMs and tMid.
+              // Weight 70% toward `maxLower` (the proven post-tick side of the boundary) so our clock never
+              // triggers on the pre-tick side (06:59:59.9xx) and wastes Probe #1 on a 303 Locked response.
               if (maxLower <= minUpper) {
-                return Math.round((maxLower + minUpper) / 2);
+                return Math.round(maxLower * 0.7 + minUpper * 0.3);
               }
-              return Math.round(serverMs - (prevMidMs + tMid) / 2);
+              return Math.round(serverMs - (prevMidMs * 0.3 + tMid * 0.7));
             }
 
             prevMidMs = tMid;

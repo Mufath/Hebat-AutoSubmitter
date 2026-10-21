@@ -1135,23 +1135,30 @@ export class SubmitJob extends DurableObject<Env> {
     // Persist POLLING phase BEFORE entering the T - 1.2s hot window so ZERO SQLite disk I/O occurs during the race!
     await this.setPhase('POLLING');
 
-    // 1. TCP/TLS Keep-Alive & Endpoint Warm-Up at T - 1200ms:
-    // Sends a lightweight HEAD request to /mod/assign/view.php?id=<cmid> so the TLS socket & Moodle session are hot,
-    // and at T=0 we immediately fire Zero-GET Direct POST (tryDirectSubmitOnUnlock) in 1 single round-trip!
+    // 1. Two-Stage TCP/TLS Keep-Alive & Endpoint Warm-Up (T - 1200ms and T - 250ms):
+    // Stage 1 (T - 1200ms) completes initial TCP+TLS handshake; Stage 2 (T - 250ms) refreshes the keep-alive
+    // socket ~100ms before T=0 so Apache/Nginx never closes an idle connection during the 07:00:00 traffic spike.
     let rttMs = 80;
     let didWarmUp = false;
     let unlocked = false;
     let unlockedFormFields = null;
+    const warmTargetPath = `/mod/assign/view.php?id=${assignment.cmid}`;
     if (nextUnlockAt - (Date.now() + offset) > 1350) {
       await sleepUntil(nextUnlockAt - 1200, offset);
-      rttMs = await warmUpConnection(jar, bud, baseUrl, `/mod/assign/view.php?id=${assignment.cmid}`);
+      rttMs = await warmUpConnection(jar, bud, baseUrl, warmTargetPath);
+      didWarmUp = true;
+    }
+    if (nextUnlockAt - (Date.now() + offset) > 320 && bud.remaining > 25) {
+      await sleepUntil(nextUnlockAt - 250, offset);
+      rttMs = await warmUpConnection(jar, bud, baseUrl, warmTargetPath);
       didWarmUp = true;
     }
 
-    // 2. Pre-Arrival Timing: launch first wave shot at T - (RTT * 0.45) so packet lands right at 07:00:00.000
-    const oneWayMs = Math.min(90, Math.max(12, Math.round(rttMs * 0.45)));
-    const targetPollStartMs = nextUnlockAt - oneWayMs;
-    await sleepUntil(targetPollStartMs, offset);
+    // 2. Exact Boundary Trigger:
+    // Because `sampleServerOffset` already calibrates `offset` using `tMid = t0 + RTT/2` weighted toward `maxLower`
+    // (the post-tick boundary), waking up at `nextUnlockAt` ensures Packet #1 arrives at Hebat Unair right at
+    // 07:00:00.005-07:00:00.020 without double-subtracting `oneWayMs` (avoiding early 06:59:59.930 303 rejects!).
+    await sleepUntil(nextUnlockAt, offset);
 
     let isFirstWave = true;
     let totalPollProbes = 0;
@@ -1171,7 +1178,7 @@ export class SubmitJob extends DurableObject<Env> {
       // Zero-GET Direct POST Strike (for locked assignments when we already know sesskey + userId from Alarm A):
       // Fires POST savesubmission directly across 07:00:00.000 so locked assignments also complete in 1 HTTP step (~240ms)
       // without waiting for a prior GET editsubmission (~300ms)!
-      if (!dryRun && sessionMeta?.sesskey && sessionMeta?.userId && directPostAttempts < 2) {
+      if (!dryRun && sessionMeta?.sesskey && sessionMeta?.userId && directPostAttempts < 3) {
         directPostAttempts++;
         totalPollProbes++;
         const nowServerSec = Math.floor((Date.now() + offset) / 1000) + 2;
@@ -1208,9 +1215,9 @@ export class SubmitJob extends DurableObject<Env> {
           }
           continue;
         }
-        // If still LOCKED on first direct POST attempt, sleep 15ms and try once more or fall into Wave Poll
-        if (directPostAttempts < 2) {
-          await new Promise(r => setTimeout(r, 15));
+        // If still LOCKED on direct POST attempt, retry after 2ms (since 1 full RTT already elapsed)
+        if (directPostAttempts < 3) {
+          await new Promise(r => setTimeout(r, 2));
           continue;
         }
       }

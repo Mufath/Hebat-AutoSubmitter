@@ -136,7 +136,7 @@ export default {
 
         // Pre-save authenticated credentials into user's isolated DO storage
         const doId = env.JOB.idFromName(`user_${cleanNim}`);
-        const stub = env.JOB.get(doId) as unknown as SubmitJob;
+        const stub = env.JOB.get(doId, { locationHint: 'apac' }) as unknown as SubmitJob;
         await stub.initUser(cleanNim);
         await stub.setConfig({ moodleUser: cleanNim, moodlePass: password });
 
@@ -178,7 +178,7 @@ export default {
         // Get user-isolated Durable Object instance partitioned by NIM
         const userNim = auth.nim || 'default';
         const doId = env.JOB.idFromName(`user_${userNim}`);
-        const stub = env.JOB.get(doId) as unknown as SubmitJob;
+        const stub = env.JOB.get(doId, { locationHint: 'apac' }) as unknown as SubmitJob;
         await stub.initUser(userNim);
 
         // Route: GET /api/status

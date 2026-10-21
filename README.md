@@ -12,7 +12,7 @@ UI dirancang dengan estetika minimalis Apple-native, responsif untuk ponsel/desk
 - **Zero-GET Direct POST Strike:** Menembus pengumpulan tugas dalam **1 langkah tunggal HTTP (~240–300 ms)** tanpa perlu mengunduh form `editsubmission` terlebih dahulu saat jam buka tugas tiba.
 - **Pre-Unlock Draft Upload:** Berkas PDF diunggah ke draft area Hebat Unair 10 menit sebelum tugas dibuka (*T-10m*). Saat jam 07:00:00 WIB tiba, sistem tinggal menautkan ID draft dalam hitungan milidetik!
 - **Staggered Hedged Wave Polling:** Melepaskan gelombang mikro (*[0, 35, 75] ms*) di batas jam buka untuk mengeliminasi *Early-Poll Penalty* jika jam server Hebat Unair bergeser tipis.
-- **Latensi Sub-Detik Ekstrem (~250 ms):** Dilengkapi *HTTP Second-Boundary Clock Sync (akurasi rapat 65 ms)*, pemanasan koneksi TCP/TLS endpoint-spesifik di *T-1.2s*, dan *Zero-Disk-I/O* selama jendela pacu.
+- **Latensi Sub-Detik Ekstrem (~250 ms):** Dilengkapi *HTTP Second-Boundary Clock Sync (akurasi rapat 65 ms)*, *Two-Stage Keep-Alive Warm-Up (T-1.2s & T-250ms)*, Cloudflare Smart Placement (APAC), dan *Zero-Disk-I/O* selama jendela pacu.
 - **100% Bebas Biaya (Cloudflare Free Tier):** Berjalan di Cloudflare Workers Free (CPU < 10 ms per eksekusi, Durable Object SQLite terisolasi per NIM, subrequest ≤ 50).
 - **Keamanan Terisolasi:** Setiap pengguna memiliki instance ruang kerja mandiri. Password dan cookie tidak pernah dicatat dalam log.
 - **Notifikasi Telegram & Mode Telemetri:** Pemberitahuan berkala dengan rincian mode eksekusi (`Zero-GET Direct POST`, `Pre-Staged`, atau `Wave Poll`), durasi kirim murni (`POST`), dan total siklus milidetik yang transparan.
@@ -89,7 +89,7 @@ Buka URL tersebut di browser ponsel atau laptop, login dengan NIM & Password Cyb
 2. **Rabu Pagi (Hari-H):**
    - Anda tidak perlu membuka laptop saat jam 07:00:00 WIB.
    - Pada pukul **06:50 WIB (T-10m)**, sistem secara otomatis bangun, menyiapkan draft di server Hebat Unair, dan mengunci parameter otentikasi.
-   - Pada pukul **06:59:58.800 WIB (T-1.2s)**, sistem memanaskan rute TCP/TLS dan sesi Moodle.
+   - Pada pukul **06:59:58.800 WIB (T-1.2s & T-250ms)**, sistem menjalankan *Two-Stage Warm-Up* untuk memastikan soket TCP/TLS dan rute Hebat Unair dalam kondisi segar panas saat jam buka.
    - Pada pukul **07:00:00.000 WIB**, sistem mengeksekusi **Zero-GET Direct POST Strike** dan menyelesaikan pengumpulan dalam **~240–300 ms**.
    - Notifikasi sukses beserta rincian mode eksekusi akan langsung dikirimkan ke Telegram Anda.
 
